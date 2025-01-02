@@ -102,7 +102,7 @@ source "proxmox-clone" "image_name" {
 
 #### Scripts
 
-The first provsioner for your build should be the following to things know they are
+The first provsioner for your build should be the following so things know they are
 in a packer build. See script for details
 
 ```hcl
@@ -140,3 +140,4 @@ Run the following replacing `${path_to_image}` with the folder your `main.pkr.hc
 
 Once your image is built you will see something similar to this in the Proxmox UI
 
+![Proxmox Datacenter View showing built VM Templates with Tags](./assets/proxmox-ui-tags.png)
