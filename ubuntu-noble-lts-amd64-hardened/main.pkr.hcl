@@ -35,6 +35,11 @@ source "proxmox-clone" "ubuntu-noble-hardened" {
   cores       = 1
   memory      = 2048
 
+  disks {
+    storage_pool = "freenas-nfs"
+    disk_size = "10G"
+  }
+
   network_adapters {
     bridge = "vmbr0v52"
     model  = "virtio"
@@ -53,7 +58,7 @@ source "proxmox-clone" "ubuntu-noble-hardened" {
   os           = "l26"
   ssh_username = "ubuntu"
 
-  // must have at least one tag, otherwise it shows up as "tags": " ", in the api
+  // Must have at least one tag, otherwise it shows up as `"tags": " "` in the api.
   tags = "packer"
 
   cloud_init              = true
@@ -64,16 +69,28 @@ source "proxmox-clone" "ubuntu-noble-hardened" {
 build {
   sources = ["source.proxmox-clone.ubuntu-noble-hardened"]
 
+  // Packer setup
+  provisioner "shell" {
+    script = "../scripts/provisioner-shell-image-packer.sh"
+  }
+
+  // TODO: put this in ansible
+  //  Then reboot after
   provisioner "shell" {
     inline = [
       "sudo apt update -y", 
-      "sudo apt upgrade -y",
-
-      # Need to reset cloud-init and machine id things
-      # Never forget this on any builds, otherwise DHCP will hand out the same IPs
-      "sudo cloud-init --debug clean --logs --configs all",
-      "sudo truncate -s 0 /etc/machine-id /var/lib/dbus/machine-id"
+      "sudo apt upgrade -y"
     ]
+  }
+
+  // Trivy
+  provisioner "shell" {
+    script = "../scripts/provisioner-shell-image-trivy.sh"
+  }
+
+  // Cleanup
+  provisioner "shell" {
+    script = "../scripts/provisioner-shell-image-cleanup.sh"
   }
 
   post-processor "manifest" {}

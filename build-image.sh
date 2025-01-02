@@ -9,9 +9,25 @@ build_unix=$(date -d ${build_timestamp} +"%s")
 
 output_family=$(basename ${image_path})
 
-export PKR_VAR_proxmox_hostname="freenas-pm.rmb938.me"
-export PKR_VAR_proxmox_username=""
-export PKR_VAR_proxmox_token=""
+# Set these as envs before running
+# export PKR_VAR_proxmox_hostname=""
+# export PKR_VAR_proxmox_username=""
+# export PKR_VAR_proxmox_token=""
+
+if [[ -z "$PKR_VAR_proxmox_hostname" ]]; then
+  echo "PKR_VAR_proxmox_hostname isn't set"
+  exit 1
+fi
+
+if [[ -z "$PKR_VAR_proxmox_username" ]]; then
+  echo "PKR_VAR_proxmox_username isn't set"
+  exit 1
+fi
+
+if [[ -z "$PKR_VAR_proxmox_token" ]]; then
+  echo "PKR_VAR_proxmox_token isn't set"
+  exit 1
+fi
 
 # Find the base images
 image_family=$(cat ${image_path}/base-image-family)
@@ -28,7 +44,7 @@ fi
 
 echo "Found the following VM Templates for family ${image_family}:"
 
-echo ${image_family_templates} | jq -s -r '(["NAME","ID"] | (., map(length*"-"))), (.[] | [.name, .id]) | @tsv' | column -ts $'\t'
+echo ${image_family_templates} | jq -s -r '(["NAME","TAGS","ID"] | (., map(length*"-"))), (.[] | [.name, .tags, .id]) | @tsv' | column -ts $'\t'
 echo ""
 
 # Find the lasted image in the base images
