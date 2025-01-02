@@ -7,28 +7,33 @@ packer {
   }
 }
 
+variable "proxmox_hostname" {
+  type = string
+}
+
 variable "proxmox_username" {
   type = string
-  default = "root@pam!packer"
 }
 
 variable "proxmox_token" {
-  type    = string
-  default = "e960bb5a-56f5-48d2-a2d2-bbc9fa520b9c"
+  type = string
+}
+
+variable "clone_vm_id" {
+  type = number
 }
 
 source "proxmox-clone" "ubuntu-noble-hardened" {
   username    = "${var.proxmox_username}"
   token       = "${var.proxmox_token}"
-  proxmox_url = "https://freenas-pm.rmb938.me:8006/api2/json"
+  proxmox_url = "https://${var.proxmox_hostname}:8006/api2/json"
+  node        = "freenas-pm"
 
-  clone_vm_id = 108
+  clone_vm_id = "${var.clone_vm_id}"
 
   sockets     = 1
   cores       = 1
   memory      = 2048
-
-  node = "freenas-pm"
 
   network_adapters {
     bridge = "vmbr0v52"
@@ -48,12 +53,12 @@ source "proxmox-clone" "ubuntu-noble-hardened" {
   os           = "l26"
   ssh_username = "ubuntu"
 
+  // must have at least one tag, otherwise it shows up as "tags": " ", in the api
+  tags = "packer"
+
   cloud_init              = true
-  cloud_init_storage_pool = "local-zfs"
+  cloud_init_storage_pool = "freenas-nfs"
 
-  tags = "image;family-ubuntu-2404-lts-amd64"
-
-  template_name = "ubuntu-noble-${formatdate("YYYYMMDD-hhmmss", timestamp())}"
 }
 
 build {
@@ -70,4 +75,7 @@ build {
       "sudo truncate -s 0 /etc/machine-id /var/lib/dbus/machine-id"
     ]
   }
+
+  post-processor "manifest" {}
+
 }
