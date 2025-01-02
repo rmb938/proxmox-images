@@ -10,8 +10,8 @@ build_unix=$(date -d ${build_timestamp} +"%s")
 output_family=$(basename ${image_path})
 
 export PKR_VAR_proxmox_hostname="freenas-pm.rmb938.me"
-export PKR_VAR_proxmox_username="root@pam!test"
-export PKR_VAR_proxmox_token="2fffdfda-b6db-49e3-b376-ac1fe7384eee"
+export PKR_VAR_proxmox_username=""
+export PKR_VAR_proxmox_token=""
 
 # Find the base images
 image_family=$(cat ${image_path}/base-image-family)
