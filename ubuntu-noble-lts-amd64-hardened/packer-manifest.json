@@ -1,0 +1,14 @@
+{
+  "builds": [
+    {
+      "name": "ubuntu-noble-hardened",
+      "builder_type": "proxmox-clone",
+      "build_time": 1735777593,
+      "files": null,
+      "artifact_id": "102",
+      "packer_run_uuid": "94f75154-e0fc-c3b5-0ddc-de12ba547b03",
+      "custom_data": null
+    }
+  ],
+  "last_run_uuid": "94f75154-e0fc-c3b5-0ddc-de12ba547b03"
+}
