@@ -30,7 +30,13 @@ if [[ -z "$PKR_VAR_proxmox_token" ]]; then
 fi
 
 # Find the base images
-image_family=$(cat ${image_path}/base-image-family)
+image_family=$(head -n 1 ${image_path}/base-image-family)
+
+if [[ -z "$image_family" ]]; then
+  echo "${image_path}/base-image-family does not have a family on the first line"
+  exit 1
+fi
+
 echo "Looking for VM Template Image with family ${image_family}"
 raw_resources=$(curl -s https://${PKR_VAR_proxmox_hostname}:8006/api2/json/cluster/resources?type=vm -H "Authorization: PVEAPIToken=${PKR_VAR_proxmox_username}=${PKR_VAR_proxmox_token}")
 qemu_templates=$(echo ${raw_resources} | jq '.data[] | select(.type == "qemu" and .template == 1)')
