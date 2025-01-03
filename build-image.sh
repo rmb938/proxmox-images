@@ -67,7 +67,7 @@ echo "Found latest Image in Family ${image_family}: $(echo ${latest_image_raw} |
 export PKR_VAR_clone_vm_id=$(echo ${latest_image_raw} | jq -r '.id | sub("^qemu/"; "")')
 
 # Build the new image
-(cd ${image_path} && packer build -force -timestamp-ui main.pkr.hcl)
+(cd ${image_path} && packer init main.pkr.hcl && packer build -force -timestamp-ui main.pkr.hcl)
 
 # TODO: during PRs we need the option to not continue and delete the created vm
 #   since we don't want PRs to tag the VM as latest or add it to the family
