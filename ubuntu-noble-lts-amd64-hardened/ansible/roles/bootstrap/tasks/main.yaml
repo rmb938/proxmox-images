@@ -1,0 +1,361 @@
+---
+# TODO: CIS benchmark fixing once it's released for 24.04
+
+# TODO: add NTP server
+- name: Set timezone
+  community.general.timezone:
+    name: America/Chicago
+
+- name: Upgrade all packages
+  ansible.builtin.apt:
+    upgrade: "full"
+    autoremove: true
+    autoclean: true
+    update_cache: true
+
+- name: Reboot
+  ansible.builtin.reboot:
+    post_reboot_delay: 30
+    reboot_timeout: 300
+
+- name: Install Tailscale keyring
+  ansible.builtin.get_url:
+    url: https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    checksum: sha256:3e03dacf222698c60b8e2f990b809ca1b3e104de127767864284e6c228f1fb39
+    mode: "0644"
+
+- name: Add Tailscale repo
+  ansible.builtin.apt_repository:
+    repo: >
+      deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg]
+      https://pkgs.tailscale.com/stable/ubuntu noble main
+    state: present
+
+- name: Install Tailscale
+  ansible.builtin.package:
+    name:
+      - tailscale
+    state: present
+
+- name: Install unattended-upgrades
+  ansible.builtin.package:
+    name:
+      - unattended-upgrades
+    state: present
+
+- name: Configure Auto Upgrades
+  ansible.builtin.template:
+    src: etc/apt/apt.conf.d/50unattended-upgrades
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    mode: "0644"
+
+- name: Restart unattended-upgrades # noqa: no-handler
+  ansible.builtin.systemd:
+    name: unattended-upgrades
+    state: restarted
+    enabled: true
+
+- name: Install tools
+  ansible.builtin.package:
+    name:
+      - net-tools
+      - htop
+      - unzip
+      - gnupg2
+      - vim
+    state: present
+
+- name: Install Smallstep keyring
+  ansible.builtin.get_url:
+    url: https://packages.smallstep.com/keys/apt/repo-signing-key.gpg
+    dest: /usr/share/keyrings/smallstep.asc
+    checksum: sha256:3ecc63922b7795eb23fdc449ff9396f9114cb3cf186d6f5b53ad4cc3ebfbb11f
+    mode: "0644"
+
+- name: Add Smallstep repo
+  ansible.builtin.apt_repository:
+    repo: >
+      deb [signed-by=/usr/share/keyrings/smallstep.asc]
+      https://pkgs.infra.smallstep.com/stable/debian debs main
+    state: present
+
+- name: Install step cli
+  ansible.builtin.package:
+    name:
+      - step-cli
+    state: present
+
+- name: Download Homelab Root
+  ansible.builtin.command: >-
+    step ca root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+    --ca-url https://cuboid-topi.rmb1993-gmail-com.ca.smallstep.com
+    --fingerprint eb136a5118931a2306964469705323521dda8c43d26ec67e1c5508eb123f9c70
+  args:
+    creates: /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+
+- name: Make sure Homelab Root is world readable
+  ansible.builtin.file:
+    path: /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+    mode: "0644"
+
+- name: Update CA Trust
+  ansible.builtin.command: update-ca-certificates
+  changed_when: false
+
+- name: Install Prometheus Node Exporter
+  ansible.builtin.package:
+    name:
+      - prometheus-node-exporter
+    state: present
+
+# TODO: place override for node exporter
+# ConditionPathExists=!/var/tmp/packer
+
+- name: Reload SystemD # noqa: no-handler
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Start and Enable Prometheus Node Exporter
+  ansible.builtin.systemd:
+    service: prometheus-node-exporter
+    state: started
+    enabled: true
+
+- name: Install Fluentbit keyring
+  ansible.builtin.get_url:
+    url: https://packages.fluentbit.io/fluentbit.key
+    dest: /usr/share/keyrings/fluentbit-keyring.asc
+    checksum: sha256:df248e2d7103ca62cb683c20a077198d0fb0a7f79dbf53a604af0317de3b4711
+    mode: "0644"
+
+- name: Add Fluentbit repo
+  ansible.builtin.apt_repository:
+    repo: >
+      deb [signed-by=/usr/share/keyrings/fluentbit-keyring.asc]
+      https://packages.fluentbit.io/ubuntu/noble noble main
+    state: present
+
+- name: Install fluentbit
+  ansible.builtin.package:
+    name: fluent-bit
+    state: present
+
+- name: Configure fluentbit
+  ansible.builtin.template:
+    src: etc/fluent-bit/fluent-bit.conf
+    dest: /etc/fluent-bit/fluent-bit.conf
+    mode: "0644"
+    owner: root
+    group: root
+
+- name: Configure fluentbit Parsers
+  ansible.builtin.template:
+    src: etc/fluent-bit/parsers.conf
+    dest: /etc/fluent-bit/parsers.conf
+    mode: "0644"
+    owner: root
+    group: root
+
+- name: Create fluentbit inputs directory
+  ansible.builtin.file:
+    path: /etc/fluent-bit-inputs.d/
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Configure fluentbit inputs
+  ansible.builtin.template:
+    src: etc/fluent-bit-inputs.d/{{ item }}
+    dest: /etc/fluent-bit-inputs.d/{{ item }}
+    mode: "0644"
+    owner: root
+    group: root
+  with_items:
+    - 00_auth-log.conf
+    - 00_kern-log.conf
+    - 00_systemd.conf
+    - 00_unattended-upgrades-log.conf
+
+- name: Create fluentbit filters directory
+  ansible.builtin.file:
+    path: /etc/fluent-bit-filters.d/
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Configure fluentbit filters
+  ansible.builtin.template:
+    src: etc/fluent-bit-filters.d/{{ item }}
+    dest: /etc/fluent-bit-filters.d/{{ item }}
+    mode: "0644"
+    owner: root
+    group: root
+  with_items:
+    - 00_hostname.conf
+    - 01_systemd.conf
+    - 02_system-files.conf
+
+- name: Create fluentbit state directory
+  ansible.builtin.file:
+    path: /var/lib/fluent-bit
+    mode: "0755"
+    owner: root
+    group: root
+    state: directory
+
+# TODO: place override for fluentbit
+# ConditionPathExists=!/var/tmp/packer
+
+- name: Reload SystemD # noqa: no-handler
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Start fluentbit
+  ansible.builtin.systemd:
+    service: fluent-bit
+    state: started
+    enabled: true
+
+- name: Set Shell Timeout
+  ansible.builtin.copy:
+    content: |
+      readonly TMOUT=300
+      export TMOUT
+    dest: /etc/profile.d/shell_timeout.sh
+    mode: "0644"
+
+# CIS Hardening
+
+# yamllint disable rule:line-length
+# inspec exec git@github.com:dev-sec/cis-dil-benchmark.git --target ssh://ubuntu@192.168.52.100 --sudo --reporter cli html:index.html -i ~/.ssh/id_ed25519
+# yamllint enable rule:line-length
+
+# Current build as of 1/2/25:
+#   Ubuntu 24.04 Proxmox VM:
+#     Test Summary: 806 successful, 288 failures, 32 skipped
+
+- name: "1.1.1.1 - 1.1.1.7"
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/disabled-fs-ansible.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      install cramfs /bin/true
+      install freevxfs /bin/true
+      install jffs2 /bin/true
+      install hfs /bin/true
+      install hfsplus /bin/true
+      install squashfs /bin/true
+      install udf /bin/true
+      install vfat /bin/true
+      install usb_storage /bin/true
+
+- name: "2.2.16"
+  ansible.builtin.systemd_service:
+    name: rsync
+    enabled: false
+    masked: true
+
+- name: "3.1.2"
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    reload: true
+  with_items:
+    - { name: "net.ipv4.conf.all.send_redirects", value: 0 }
+    - { name: "net.ipv4.conf.default.send_redirects", value: 0 }
+
+- name: "3.2.1"
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    reload: true
+  with_items:
+    - { name: "net.ipv4.conf.all.accept_source_route", value: 0 }
+    - { name: "net.ipv4.conf.default.accept_source_route", value: 0 }
+    - { name: "net.ipv6.conf.all.accept_source_route", value: 0 }
+    - { name: "net.ipv6.conf.default.accept_source_route", value: 0 }
+
+- name: "3.2.2"
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    reload: true
+  with_items:
+    - { name: "net.ipv4.conf.all.accept_redirects", value: 0 }
+    - { name: "net.ipv4.conf.default.accept_redirects", value: 0 }
+    - { name: "net.ipv6.conf.all.accept_redirects", value: 0 }
+    - { name: "net.ipv6.conf.default.accept_redirects", value: 0 }
+
+- name: "3.2.3"
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    reload: true
+  with_items:
+    - { name: "net.ipv4.conf.all.secure_redirects", value: 0 }
+    - { name: "net.ipv4.conf.default.secure_redirects", value: 0 }
+
+- name: "3.2.4"
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    reload: true
+  with_items:
+    - { name: "net.ipv4.conf.all.log_martians", value: 1 }
+    - { name: "net.ipv4.conf.default.log_martians", value: 1 }
+
+- name: "3.2.7"
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    reload: true
+  with_items:
+    - { name: "net.ipv4.conf.all.rp_filter", value: 1 }
+    - { name: "net.ipv4.conf.default.rp_filter", value: 1 }
+
+# We like ipv6 RA so not setting this
+# - name: "3.2.9"
+#   ansible.posix.sysctl:
+#     name: "{{ item.name }}"
+#     value: "{{ item.value }}"
+#     reload: true
+#   with_items:
+#     - {name: "net.ipv6.conf.all.accept_ra", value: 0}
+#     - {name: "net.ipv6.conf.default.accept_ra", value: 0}
+
+- name: "3.4.1 - 3.4.4"
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/disabled-network-ansible.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      install dccp /bin/true
+      install sctp /bin/true
+      install rds /bin/true
+      install tipc /bin/true
+
+- name: "5.2 SSH Server Configuration Template"
+  ansible.builtin.template:
+    src: etc/ssh/sshd_config
+    dest: /etc/ssh/sshd_config
+    mode: "0600"
+
+- name: "5.2 Restart SSH Server SSH"  # noqa: no-handler
+  ansible.builtin.systemd:
+    name: ssh
+    state: restarted
+
+# Resetting ssh connection because we want to restart ssh
+# So we need to make sure we can still ssh
+- name: "5.2 Reset connection"
+  ansible.builtin.meta: reset_connection
+
+- name: "5.2 Test SSH Connection"
+  ansible.builtin.command: "echo 'Hello World'"
+  changed_when: false

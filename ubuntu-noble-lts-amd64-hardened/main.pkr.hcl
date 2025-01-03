@@ -5,6 +5,13 @@ packer {
       source  = "github.com/hashicorp/proxmox"
     }
   }
+  required_plugins {
+    ansible = {
+      version = "~> 1"
+      source = "github.com/hashicorp/ansible"
+    }
+  }
+
 }
 
 variable "proxmox_hostname" {
@@ -34,11 +41,6 @@ source "proxmox-clone" "ubuntu-noble-hardened" {
   sockets     = 1
   cores       = 1
   memory      = 2048
-
-  disks {
-    storage_pool = "freenas-nfs"
-    disk_size = "10G"
-  }
 
   network_adapters {
     bridge = "vmbr0v52"
@@ -74,13 +76,15 @@ build {
     script = "../scripts/provisioner-shell-image-packer.sh"
   }
 
-  // TODO: put this in ansible
-  //  Then reboot after
-  provisioner "shell" {
-    inline = [
-      "sudo apt update -y", 
-      "sudo apt upgrade -y"
+  provisioner "ansible" {
+    playbook_file   = "ansible/site.yaml"
+    user            = "ubuntu"
+    extra_arguments = [
+      "-v",
+      "--diff"
     ]
+
+    ansible_env_vars = ["ANSIBLE_FORCE_COLOR=1"]
   }
 
   // Trivy
