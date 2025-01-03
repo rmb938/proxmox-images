@@ -2,7 +2,7 @@
 
 set -exuo pipefail
 
-# pPlacing a packer file that systemd can condition off of.
+# Placing a packer file that systemd can condition off of.
 # If this file exists applications shouldn't start.
 #   For example in a systemd unit
 #   ConditionPathExists=!/var/tmp/packer
