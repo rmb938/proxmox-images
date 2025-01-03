@@ -36,7 +36,7 @@ Once a image is built it will get the `latest` label.
 
 Up to 5 images total will be kept in the image family for easy rollback.
 
-## Labels and Naming
+## Tags and Naming
 
 VM Tempaltes will be named `${family}-${unix_timestamp}`. Do not change the name
 or remove labels as it will cause the automation to get confused.
