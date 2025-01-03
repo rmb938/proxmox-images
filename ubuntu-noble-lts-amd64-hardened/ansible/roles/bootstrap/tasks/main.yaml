@@ -235,6 +235,7 @@
 
 # Current build as of 1/2/25:
 #   Ubuntu 24.04 Proxmox VM:
+#     Test Summary: 806 successful, 288 failures, 32 skipped
 
 - name: "1.1.1.1 - 1.1.1.7"
   ansible.builtin.copy:
