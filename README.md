@@ -43,10 +43,10 @@ or remove labels as it will cause the automation to get confused.
 
 VM Templates will have the following tags
 
-`build-date-${date}` - This label automatically gets added to all images built
-`family-${family}` - Contains the name of the image family
-`image` - Label stating that this Template is an image
-`latest` - Dictates that this is the latest image
+* `build-date-${date}` - This label automatically gets added to all images built
+* `family-${family}` - Contains the name of the image family
+* `image` - Label stating that this Template is an image
+* `latest` - Dictates that this is the latest image
 
 ## Folder Structure and Configuration
 
