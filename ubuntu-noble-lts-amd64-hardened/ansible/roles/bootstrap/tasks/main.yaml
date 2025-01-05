@@ -50,7 +50,7 @@
     dest: /etc/apt/apt.conf.d/50unattended-upgrades
     mode: "0644"
 
-- name: Restart unattended-upgrades # noqa: no-handler
+- name: Restart unattended-upgrades
   ansible.builtin.systemd:
     name: unattended-upgrades
     state: restarted
@@ -112,7 +112,7 @@
 # TODO: place override for node exporter
 # ConditionPathExists=!/var/tmp/packer
 
-- name: Reload SystemD # noqa: no-handler
+- name: Reload SystemD
   ansible.builtin.systemd:
     daemon_reload: true
 
@@ -209,7 +209,7 @@
 # TODO: place override for fluentbit
 # ConditionPathExists=!/var/tmp/packer
 
-- name: Reload SystemD # noqa: no-handler
+- name: Reload SystemD
   ansible.builtin.systemd:
     daemon_reload: true
 
@@ -346,7 +346,7 @@
     dest: /etc/ssh/sshd_config
     mode: "0600"
 
-- name: "5.2 Restart SSH Server SSH"  # noqa: no-handler
+- name: "5.2 Restart SSH Server SSH"
   ansible.builtin.systemd:
     name: ssh
     state: restarted
