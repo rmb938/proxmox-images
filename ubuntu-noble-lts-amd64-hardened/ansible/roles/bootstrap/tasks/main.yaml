@@ -198,6 +198,24 @@
     - 01_systemd.conf
     - 02_system-files.conf
 
+- name: Create fluentbit parsers directory
+  ansible.builtin.file:
+    path: /etc/fluent-bit-parsers.d/
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Configure fluentbit parsers
+  ansible.builtin.template:
+    src: etc/fluent-bit-parsers.d/{{ item }}
+    dest: /etc/fluent-bit-parsers.d/{{ item }}
+    mode: "0644"
+    owner: root
+    group: root
+  with_items:
+    - 00_syslog-rfc3164-local-custom.conf
+
 - name: Create fluentbit state directory
   ansible.builtin.file:
     path: /var/lib/fluent-bit
