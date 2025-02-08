@@ -6,6 +6,7 @@ set -exuo pipefail
 # TODO: Not doing '--exit-code 1' on the trivy binary because it detects old kernel versions and fails https://github.com/aquasecurity/trivy/issues/3764.
 #    There is no easy way to remove the old kernels, apt autoremove doesn't work since it seems to be hard coded to keep X amount.
 # Skipping /dev, /proc, /sys, /run, /var/run, /tmp because they are memory fs, skipping /var/cache/apt & /var/lib/apt/lists since there is no point scanning apt cache's.
+# Skipping /etc/ssh/ssh_host_*_key since it's suppose to exist anyway.
 
 # Download and install
 mkdir -p /tmp/trivy
