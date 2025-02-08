@@ -77,6 +77,8 @@ build {
   }
 
   provisioner "ansible" {
+    galaxy_file = "ansible/requirements.yml"
+
     playbook_file   = "ansible/site.yaml"
     user            = "ubuntu"
     extra_arguments = [
