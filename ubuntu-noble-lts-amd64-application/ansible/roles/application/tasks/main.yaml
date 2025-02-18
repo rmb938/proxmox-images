@@ -1,4 +1,12 @@
 ---
+- name: Create SystemD system override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system.conf.d
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+
 # Start Hashicorp
 - name: Install Hashicorp keyring
   ansible.builtin.get_url:
@@ -55,6 +63,22 @@
     group: consul
   with_fileglob:
     - ../templates/etc/consul.d/*.hcl
+
+- name: SystemD Resolver override folder
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d/
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Consul SystemD Resolver
+  ansible.builtin.template:
+    src: "etc/systemd/resolved.conf.d/consul.conf"
+    dest: "/etc/systemd/resolved.conf.d/consul.conf"
+    mode: "0644"
+    owner: consul
+    group: consul
 # End Consul
 
 # Start Vault Agent
