@@ -2,7 +2,7 @@
 # Consul Template Managed - Consul
 
 # Not setting node name, consul will figure it out on it's own
-#node_name          = "n/a"
+#node_name = "n/a"
 
 datacenter         = "hl-us-homelab1"
 primary_datacenter = "hl-us-homelab1"
@@ -10,7 +10,7 @@ primary_datacenter = "hl-us-homelab1"
 data_dir = "/opt/consul/data"
 {% raw %}
 {{ with secret "secret/consul/encrypt_key" }}
-encrypt  = "{{ .Data.key }}"
+encrypt = "{{ .Data.key }}"
 {{ end }}
 {% endraw %}
 
@@ -21,8 +21,7 @@ retry_join = [
 ]
 
 bind_addr = "{% raw %}{{ `{{ GetInterfaceIP \"eth0\" }}` }}{% endraw %}"
-
-serf_lan               = "{% raw %}{{ `{{ GetInterfaceIP \"eth0\" }}` }}{% endraw %}"
+serf_lan  = "{% raw %}{{ `{{ GetInterfaceIP \"eth0\" }}` }}{% endraw %}"
 
 # Hard coding this, no easy way to figure this out at deploy time
 serf_lan_allowed_cidrs = ["192.168.23.0/24"]
@@ -36,10 +35,10 @@ addresses {
 }
 
 ports {
-  http = 8500
-  https = -1
+  http     = 8500
+  https    = -1
   serf_wan = -1
-  grpc = 8502
+  grpc     = 8502
   grpc_tls = 8503
 }
 
@@ -81,4 +80,9 @@ acl {
     {{ end }}
     {% endraw %}
   }
+}
+
+node_meta {
+  # Must match CONSUL_ROLE env var
+  consul_role = "{% raw %}{{ mustEnv "CONSUL_ROLE" }}{% endraw %}"
 }
