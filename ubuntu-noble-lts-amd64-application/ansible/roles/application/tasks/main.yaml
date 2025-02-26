@@ -7,6 +7,12 @@
     owner: root
     group: root
 
+- name: Application Hostname SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/application-hostname.service
+    dest: /etc/systemd/system/application-hostname.service
+    mode: "0644"
+
 # Start Hashicorp
 - name: Install Hashicorp keyring
   ansible.builtin.get_url:
