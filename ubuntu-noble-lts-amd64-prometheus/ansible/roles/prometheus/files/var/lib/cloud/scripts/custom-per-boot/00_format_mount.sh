@@ -5,11 +5,13 @@ set -e
 set -x
 
 # vars
-blockDevice="/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1"
 vgName=vg_data
-lvName=lv_data
+
 # TODO: we can probably make this generic and have the images tell the script
 # about their mounts somehow
+blockDevice="/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1"
+lvName=lv_data
+lvSize="100%FREE"
 mountLocation=/var/lib/prometheus
 mountLocationOwner=prometheus
 
@@ -43,13 +45,13 @@ fi
 
 # Check if we need to create the lv
 set +e
-lvcreate -l 100%FREE -n ${lvName} ${vgName} -t
+lvcreate -l ${lvSize} -n ${lvName} ${vgName} -t
 lvcreatetest=$?
 set -e
 
 if [ $lvcreatetest -eq 0 ]; then
   echo "LV is not created, create it"
-  lvcreate -l 100%FREE -n ${lvName} ${vgName}
+  lvcreate -l ${lvSize} -n ${lvName} ${vgName}
 fi
 
 # Check if we need to format the drive

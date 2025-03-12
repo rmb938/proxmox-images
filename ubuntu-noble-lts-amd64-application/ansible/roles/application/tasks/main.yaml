@@ -9,6 +9,14 @@
     group: root
   with_fileglob:
     - ../files/var/lib/cloud/scripts/per-boot/*.sh
+
+- name: Custom Per Boot Cloud Init Dir
+  ansible.builtin.file:
+    path: /var/lib/cloud/scripts/custom-per-boot
+    mode: "0755"
+    owner: root
+    group: root
+    state: directory
 # End Cloud Init Scripts
 
 - name: Create SystemD system override folder
