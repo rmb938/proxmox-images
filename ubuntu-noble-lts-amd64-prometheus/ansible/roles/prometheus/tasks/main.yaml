@@ -1,0 +1,329 @@
+---
+# Start Cloud Init Scripts
+- name: Cloud Init Scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/var/lib/cloud/scripts/per-boot/{{ item | basename }}"
+    mode: "0755"
+    owner: root
+    group: root
+  with_fileglob:
+    - ../files/var/lib/cloud/scripts/per-boot/*.sh
+# End Cloud Init Scripts
+
+# Start Consul Tempalte for Consul
+- name: Configure Consul Template for Consul
+  ansible.builtin.template:
+    src: etc/consul-template/consul/50_prometheus.hcl
+    dest: /etc/consul-template/consul/50_prometheus.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Place Consul Template for Consul Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/consul/{{ item | basename }}"
+    mode: "0644"
+    owner: consul
+    group: consul
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/consul/*.ctmpl
+# End Consul Tempalte for Consul
+
+# Not installing prometheus from package because debian patches out the SD
+# configs without documenting it, so you get weird error messages
+# Ref: https://salsa.debian.org/go-team/packages/prometheus/-/tree/debian/sid/debian/patches?ref_type=heads
+# - name: Install Prometheus
+#   ansible.builtin.package:
+#     name: prometheus
+#     state: present
+
+# Start Prometheus
+- name: Prometheus Step Certs SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/prometheus-step-certs.service
+    dest: /etc/systemd/system/prometheus-step-certs.service
+    mode: "0644"
+
+- name: Download Prometheus archive
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/prometheus/releases/download/v3.2.1/prometheus-3.2.1.linux-amd64.tar.gz"
+    dest: /tmp/prometheus.tar.gz
+    checksum: "sha256:a622e3007c9109a7f470e1433cbd29bf392596715cf7eea8b81b37fa9d26b7be"
+    mode: "0666"
+
+- name: Extract Prometheus archive
+  ansible.builtin.unarchive:
+    src: /tmp/prometheus.tar.gz
+    dest: /tmp
+    remote_src: true
+
+- name: Copy Prometheus binary
+  ansible.builtin.copy:
+    src: /tmp/prometheus-3.2.1.linux-amd64/prometheus
+    dest: /usr/local/bin/prometheus
+    mode: "0755"
+    remote_src: true
+
+- name: Copy Promtool binary
+  ansible.builtin.copy:
+    src: /tmp/prometheus-3.2.1.linux-amd64/promtool
+    dest: /usr/local/bin/promtool
+    mode: "0755"
+    remote_src: true
+
+- name: Create Prometheus Config Dir
+  ansible.builtin.file:
+    path: /etc/prometheus
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: "0775"
+
+- name: Create Prometheus Data Dir
+  ansible.builtin.file:
+    path: /var/lib/prometheus/data
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: "0775"
+
+- name: Prometheus SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/prometheus.service
+    dest: /etc/systemd/system/prometheus.service
+    mode: "0644"
+
+- name: Configure Prometheus
+  ansible.builtin.template:
+    src: etc/prometheus/prometheus.yml
+    dest: /etc/prometheus/prometheus.yml
+    mode: "0600"
+    owner: prometheus
+    group: prometheus
+  register: prometheus_config
+
+- name: Configure Prometheus Web
+  ansible.builtin.template:
+    src: etc/prometheus/web_config.yml
+    dest: /etc/prometheus/web_config.yml
+    mode: "0600"
+    owner: prometheus
+    group: prometheus
+  register: prometheus_web_config
+
+- name: Create Prometheus Scrape Configs Dir
+  ansible.builtin.file:
+    path: /etc/prometheus/scrape_configs/
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: "0775"
+
+- name: Prometheus Scrape Configs
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/prometheus/scrape_configs/{{ item | basename }}"
+    mode: "0600"
+    owner: prometheus
+    group: prometheus
+  with_fileglob:
+    - ../templates/etc/prometheus/scrape_configs/*.yml
+  register: prometheus_scrape_configs
+
+- name: Create Prometheus TLS Dir
+  ansible.builtin.file:
+    path: /etc/prometheus/tls/
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: "0775"
+
+- name: Cron to renew prometheus certificates
+  ansible.builtin.cron:
+    name: "renew prometheus certificates"
+    special_time: "hourly"
+    # Rekey needs to happen against the CA, RA's don't support rekey
+    # https://smallstep.com/docs/step-ca/registration-authority-ra-mode/#stepcas-limitations
+    job: >-
+      step ca rekey etc/prometheus/tls/prometheus.crt
+      /etc/prometheus/tls/prometheus.key
+      --ca-url {{ step_ca_url }}
+      --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+      --force --expires-in 720h --exec "systemctl try-reload-or-restart prometheus"
+    state: present
+# End Prometheus
+
+# Start Consul Template for Prometheus
+- name: Add prometheus to sudoers
+  community.general.sudoers:
+    name: prometheus
+    user: prometheus
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart prometheus
+    state: present
+
+- name: Configure Consul Template for prometheus
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-prometheus.hcl
+    dest: /etc/consul-template/consul-template-prometheus.hcl
+    mode: "0644"
+    owner: prometheus
+    group: prometheus
+  register: consul_template_prometheus_config
+
+- name: Create Consul Template for prometheus Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/prometheus/
+    state: directory
+    mode: "0744"
+    owner: prometheus
+    group: prometheus
+
+- name: Place Consul Template for prometheus Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/prometheus/{{ item | basename }}"
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+  with_fileglob:
+    - ../files/etc/consul-template/templates/prometheus/*.ctmpl
+  register: consul_template_prometheus_templates_files
+
+- name: Place Consul Template for prometheus Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/prometheus/{{ item | basename }}"
+    mode: "0644"
+    owner: prometheus
+    group: prometheus
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/prometheus/*.ctmpl
+  register: consul_template_prometheus_templates
+
+- name: Consul Template for prometheus SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-prometheus.service
+    dest: /etc/systemd/system/consul-template-prometheus.service
+    mode: "0644"
+# End Consul Template for prometheus
+
+# Start Grafana PDC Agent
+- name: Download Grafana PDC archive
+  ansible.builtin.get_url:
+    url: "https://github.com/grafana/pdc-agent/releases/download/v0.0.41/pdc-agent_Linux_x86_64.tar.gz"
+    dest: /var/lib/grafana-pdc.tar.gz
+    checksum: "sha256:c42d381ea6341674a785d3ace5d358c21f769393dbf91b8dd723f5ccb57188ed"
+    mode: "0666"
+
+- name: Extract Grafana PDC archive
+  ansible.builtin.unarchive:
+    src: /var/lib/grafana-pdc.tar.gz
+    dest: /var/lib
+    remote_src: true
+
+- name: Copy Grafana PDC binary
+  ansible.builtin.copy:
+    src: /var/lib/pdc-agent_Linux_x86_64/pdc
+    dest: /usr/local/bin/grafana-pdc
+    mode: "0755"
+    remote_src: true
+
+- name: Create grafana-pdc group
+  ansible.builtin.group:
+    name: grafana-pdc
+    state: present
+    system: true
+
+- name: Create grafana-pdc user
+  ansible.builtin.user:
+    name: grafana-pdc
+    group: grafana-pdc
+    home: /etc/grafana-pdc
+    create_home: false
+    state: present
+    system: true
+
+- name: Create grafana-pdc home dir
+  ansible.builtin.file:
+    path: /etc/grafana-pdc
+    state: directory
+    owner: grafana-pdc
+    group: grafana-pdc
+    mode: "0775"
+
+- name: Create grafana-pdc ssh dir
+  ansible.builtin.file:
+    path: /etc/grafana-pdc/.ssh
+    state: directory
+    owner: grafana-pdc
+    group: grafana-pdc
+    mode: "0775"
+
+- name: Grafana PDC SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/grafana-pdc.service
+    dest: /etc/systemd/system/grafana-pdc.service
+    mode: "0644"
+# End Grafana PDC Agent
+
+# Start Consul Template for grafana-pdc
+- name: Add grafana-pdc to sudoers
+  community.general.sudoers:
+    name: grafana-pdc
+    user: grafana-pdc
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart grafana-pdc
+    state: present
+
+- name: Configure Consul Template for grafana-pdc
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-grafana-pdc.hcl
+    dest: /etc/consul-template/consul-template-grafana-pdc.hcl
+    mode: "0644"
+    owner: grafana-pdc
+    group: grafana-pdc
+  register: consul_template_grafana_pdc_config
+
+- name: Create Consul Template for grafana-pdc Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/grafana-pdc/
+    state: directory
+    mode: "0744"
+    owner: grafana-pdc
+    group: grafana-pdc
+
+- name: Place Consul Template for grafana-pdc Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/grafana-pdc/{{ item | basename }}"
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+  with_fileglob:
+    - ../files/etc/consul-template/templates/grafana-pdc/*.ctmpl
+  register: consul_template_grafana_pdc_templates_files
+
+- name: Place Consul Template for grafana-pdc Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/grafana-pdc/{{ item | basename }}"
+    mode: "0644"
+    owner: grafana-pdc
+    group: grafana-pdc
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/grafana-pdc/*.ctmpl
+  register: consul_template_grafana_pdc_templates
+
+- name: Consul Template for grafana-pdc SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-grafana-pdc.service
+    dest: /etc/systemd/system/consul-template-grafana-pdc.service
+    mode: "0644"
+# End Consul Template for grafana-pdc

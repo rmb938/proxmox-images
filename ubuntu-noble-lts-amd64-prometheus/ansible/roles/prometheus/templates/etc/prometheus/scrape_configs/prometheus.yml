@@ -1,0 +1,7 @@
+## {{ ansible_managed }}
+
+scrape_configs:
+  - job_name: prometheus
+    scheme: https
+    static_configs:
+      - targets: ["{{ ansible_fqdn }}:9090"]

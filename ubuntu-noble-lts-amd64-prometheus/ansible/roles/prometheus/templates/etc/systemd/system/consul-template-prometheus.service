@@ -1,36 +1,34 @@
 # {{ ansible_managed }}
 
 [Unit]
-Description="consul-template-consul"
+Description="consul-template-prometheus"
 Requires=network-online.target
 
 # we need the main vault agent
-Wants=vault.service
+Wants=vault.service consul-template-consul.service
 
 After=network-online.target
 
 # we need the main vault agent
-After=vault.service
+After=vault.service consul-template-consul.service
 
-ConditionFileNotEmpty=/etc/consul-template/consul/00_consul.hcl
+ConditionFileNotEmpty=/etc/consul-template/consul-template-prometheus.hcl
 StartLimitIntervalSec=60
 StartLimitBurst=3
-
-ConditionEnvironment=CONSUL_ROLE
 
 [Service]
 Type=notify
 
 # override since we want this agent to run as consul user & group
-User=consul
-Group=consul
+User=prometheus
+Group=prometheus
 
 ProtectSystem=full
 ProtectHome=read-only
 PrivateTmp=yes
 
-# allow writing to /etc/consul.d/
-ReadWritePaths=/etc/consul.d/
+# allow writing to /etc/prometheus/
+ReadWritePaths=/etc/prometheus/
 
 # override to allow agent to sudo
 PrivateDevices=no
@@ -43,7 +41,7 @@ CapabilityBoundingSet=CAP_SYSLOG CAP_SYS_RESOURCE CAP_SETGID CAP_SETUID CAP_AUDI
 # override to allow agent to sudo
 NoNewPrivileges=no
 
-ExecStart=/usr/bin/consul-template -config=/etc/consul-template/consul/
+ExecStart=/usr/bin/consul-template -config=/etc/consul-template/consul-template-prometheus.hcl
 ExecReload=/bin/kill --signal HUP $MAINPID
 KillMode=process
 KillSignal=SIGINT

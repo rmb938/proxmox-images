@@ -1,4 +1,16 @@
 ---
+# Start Cloud Init Scripts
+- name: Cloud Init Scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/var/lib/cloud/scripts/per-boot/{{ item | basename }}"
+    mode: "0755"
+    owner: root
+    group: root
+  with_fileglob:
+    - ../files/var/lib/cloud/scripts/per-boot/*.sh
+# End Cloud Init Scripts
+
 - name: Create SystemD system override folder
   ansible.builtin.file:
     path: /etc/systemd/system.conf.d
@@ -6,12 +18,6 @@
     mode: "0755"
     owner: root
     group: root
-
-- name: Application Hostname SystemD
-  ansible.builtin.template:
-    src: etc/systemd/system/application-hostname.service
-    dest: /etc/systemd/system/application-hostname.service
-    mode: "0644"
 
 # Start Hashicorp
 - name: Install Hashicorp keyring
@@ -170,6 +176,14 @@
     group: root
     state: directory
 
+- name: Create Consul Template for Consul directory
+  ansible.builtin.file:
+    path: /etc/consul-template/consul/
+    state: directory
+    mode: "0744"
+    owner: consul
+    group: consul
+
 - name: Create Consul Template Templates Dir
   ansible.builtin.file:
     path: /etc/consul-template/templates/
@@ -180,8 +194,8 @@
 
 - name: Configure Consul Template for Consul
   ansible.builtin.template:
-    src: etc/consul-template/consul-template-consul.hcl
-    dest: /etc/consul-template/consul-template-consul.hcl
+    src: etc/consul-template/consul/00_consul.hcl
+    dest: /etc/consul-template/consul/00_consul.hcl
     mode: "0644"
     owner: consul
     group: consul

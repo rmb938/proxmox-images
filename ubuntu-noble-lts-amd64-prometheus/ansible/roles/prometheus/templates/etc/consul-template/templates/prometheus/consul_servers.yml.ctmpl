@@ -1,0 +1,21 @@
+## {{ ansible_managed }}
+# Consul Template Managed - Consul
+
+scrape_configs:
+  - job_name: consul_servers
+    metrics_path: /v1/agent/metrics
+    http_headers:
+      X-Consul-Token:
+        {%- raw %}
+        {{ with printf "consul/creds/%s" (mustEnv "CONSUL_ROLE") | secret }}
+        secrets: ["{{ .Data.token }}"]
+        {{- end }}
+        {%- endraw %}
+
+    params:
+      format: ["prometheus"]
+    scheme: https
+    static_configs:
+      - targets: ["hashi-consul-1.us-homelab1.hl.rmb938.me:8501"]
+      - targets: ["hashi-consul-2.us-homelab1.hl.rmb938.me:8501"]
+      - targets: ["hashi-consul-3.us-homelab1.hl.rmb938.me:8501"]

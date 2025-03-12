@@ -1,0 +1,31 @@
+## {{ ansible_managed }}
+
+scrape_configs:
+  - job_name: consul
+    consul_sd_configs:
+      - server: localhost:8500
+        datacenter: hl-us-homelab1
+        filter: 'ServiceMeta.prometheus_scrape == "true"'
+    relabel_configs:
+      # copy consul service metadata onto labels
+      - action: labelmap
+        regex: __meta_(consul_service_metadata_.+)
+      # remove prom scrape label
+      - action: labeldrop
+        regex: consul_service_metadata_prometheus_scrape
+      # set consul dc
+      - source_labels:
+          - __meta_consul_dc
+        target_label: consul_dc
+      # Set consul service name
+      - source_labels:
+          - __meta_consul_service
+        target_label: consul_service
+      # Set consul node name
+      - source_labels:
+          - __meta_consul_node
+        target_label: consul_node
+      # Replace job with consul service name
+      - source_labels:
+          - __meta_consul_service
+        target_label: job

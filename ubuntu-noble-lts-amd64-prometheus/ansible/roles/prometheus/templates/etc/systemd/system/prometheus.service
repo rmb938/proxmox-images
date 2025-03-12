@@ -1,0 +1,53 @@
+# {{ ansible_managed }}
+# Ref: https://github.com/prometheus-community/ansible/blob/main/roles/prometheus/templates/prometheus.service.j2
+
+[Unit]
+Description=Prometheus
+After=network-online.target
+Requires=local-fs.target
+After=local-fs.target
+
+# Need to make sure Prometheus Step Certs are generated.
+Wants=prometheus-step-certs.service
+
+# Prometheus Step Certs need to happen first.
+After=prometheus-step-certs.service
+
+[Service]
+Type=simple
+User=prometheus
+Group=prometheus
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStart=/usr/local/bin/prometheus \
+  --storage.tsdb.path=/var/lib/prometheus \
+  --storage.tsdb.retention.time=365d \
+  --storage.tsdb.retention.size=80GB \
+  --web.config.file=/etc/prometheus/web_config.yml \
+  --config.file=/etc/prometheus/prometheus.yml
+
+CapabilityBoundingSet=CAP_SET_UID
+LimitNOFILE=65000
+LockPersonality=true
+NoNewPrivileges=true
+MemoryDenyWriteExecute=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectHome=true
+RemoveIPC=true
+RestrictSUIDSGID=true
+#SystemCallFilter=@signal @timer
+
+ReadWritePaths=/var/lib/prometheus
+
+PrivateUsers=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+
+SyslogIdentifier=prometheus
+Restart=always
+TimeoutStopSec=600s
+
+[Install]
+WantedBy=multi-user.target

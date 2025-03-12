@@ -1,0 +1,13 @@
+## {{ ansible_managed }}
+
+scrape_configs:
+  - job_name: static_node_exporter
+    static_configs:
+      # Vault
+      - targets: ["hashi-vault-1.us-homelab1.hl.rmb938.me:9100"]
+      - targets: ["hashi-vault-2.us-homelab1.hl.rmb938.me:9100"]
+      - targets: ["hashi-vault-3.us-homelab1.hl.rmb938.me:9100"]
+      # Elastic
+      - targets: ["elasticsearch.us-homelab1.hl.rmb938.me:9100"]
+      # Step CA
+      - targets: ["step-ca.us-homelab1.hl.rmb938.me:9100"]
