@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -o pipefail
-set -e
-set -x
+set -exuo pipefail
 
 systemctl set-environment HOSTNAME=$(hostname -f)

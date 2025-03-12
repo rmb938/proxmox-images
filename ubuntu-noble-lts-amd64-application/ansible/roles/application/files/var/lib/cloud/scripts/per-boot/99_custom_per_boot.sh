@@ -1,7 +1,6 @@
 #!/bin/bash
 
-set -o pipefail
-set -e
+set -euo pipefail
 
 directory="/var/lib/cloud/scripts/custom-per-boot"
 

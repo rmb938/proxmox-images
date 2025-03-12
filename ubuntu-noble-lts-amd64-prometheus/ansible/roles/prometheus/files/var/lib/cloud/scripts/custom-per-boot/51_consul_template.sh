@@ -1,8 +1,6 @@
 #!/bin/bash
 
-set -o pipefail
-set -e
-set -x
+set -exuo pipefail
 
 systemctl start consul-template-prometheus.service
 systemctl start consul-template-grafana-pdc.service

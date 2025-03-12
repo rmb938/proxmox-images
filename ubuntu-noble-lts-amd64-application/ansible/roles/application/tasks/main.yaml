@@ -1,6 +1,6 @@
 ---
 # Start Cloud Init Scripts
-- name: Cloud Init Scripts
+- name: Cloud Init Per Boot Scripts
   ansible.builtin.copy:
     src: "{{ item }}"
     dest: "/var/lib/cloud/scripts/per-boot/{{ item | basename }}"
@@ -10,7 +10,25 @@
   with_fileglob:
     - ../files/var/lib/cloud/scripts/per-boot/*.sh
 
-- name: Custom Per Boot Cloud Init Dir
+- name: Custom Scripts Cloud Init Dir
+  ansible.builtin.file:
+    path: /var/lib/cloud/scripts/custom
+    mode: "0755"
+    owner: root
+    group: root
+    state: directory
+
+- name: Cloud Init Custom Scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/var/lib/cloud/scripts/custom/{{ item | basename }}"
+    mode: "0755"
+    owner: root
+    group: root
+  with_fileglob:
+    - ../files/var/lib/cloud/scripts/custom/*.sh
+
+- name: Custom Per Boot Scripts Cloud Init Dir
   ansible.builtin.file:
     path: /var/lib/cloud/scripts/custom-per-boot
     mode: "0755"
