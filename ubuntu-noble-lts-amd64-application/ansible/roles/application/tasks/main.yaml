@@ -1,4 +1,12 @@
 ---
+- name: Create Cloud Environment
+  ansible.builtin.copy:
+    dest: /etc/cloud-environment
+    content: ""
+    mode: "0744"
+    owner: root
+    group: root
+
 # Start Cloud Init Scripts
 - name: Cloud Init Per Boot Scripts
   ansible.builtin.copy:

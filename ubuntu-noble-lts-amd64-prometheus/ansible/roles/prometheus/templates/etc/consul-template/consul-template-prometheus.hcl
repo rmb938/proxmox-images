@@ -26,3 +26,13 @@ template {
     command = "sudo systemctl reload-or-restart prometheus || true"
   }
 }
+
+template {
+  source = "/etc/consul-template/templates/prometheus/prometheus.yml.ctmpl"
+  destination = "/etc/prometheus/scrape_configs/prometheus.yml"
+  create_dest_dirs = false
+  perms = "0600"
+  exec {
+    command = "sudo systemctl reload-or-restart prometheus || true"
+  }
+}

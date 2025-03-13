@@ -23,3 +23,5 @@ for file in "$directory"/*; do
 done
 
 echo "Finished processing files in $directory."
+
+touch /run/custom-per-boot-success
