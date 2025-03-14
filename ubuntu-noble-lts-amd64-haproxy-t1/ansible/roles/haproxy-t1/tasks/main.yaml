@@ -34,6 +34,11 @@
     mode: "0644"
     owner: consul
     group: consul
+
+- name: Disable HAProxy
+  ansible.builtin.systemd_service:
+    name: haproxy
+    enabled: false
 # End HAProxy
 
 # Start Consul Template for HAProxy
@@ -109,6 +114,11 @@
     path: /etc/keepalived
     owner: keepalived
     group: keepalived
+
+- name: Disable Keepalived
+  ansible.builtin.systemd_service:
+    name: keepalived
+    enabled: false
 # End Keepalived
 
 # Start Consul Template for Keepalived
