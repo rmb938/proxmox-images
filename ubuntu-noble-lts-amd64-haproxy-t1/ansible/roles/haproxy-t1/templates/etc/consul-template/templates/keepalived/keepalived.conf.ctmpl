@@ -1,0 +1,51 @@
+## {{ ansible_managed }}
+# Consul Template Managed - Keepalived
+# Used to re-render every boot so the service starts
+{% raw %}
+# Boot ID - {{ file "/proc/sys/kernel/random/boot_id" }}
+{% endraw %}
+
+vrrp_script chk_sshd {
+    script "/usr/bin/pkill -0 sshd"  # pkill -0 is cheaper than pidof
+    interval 5                       # check every 5 seconds
+    weight -4                        # remove 4 points of prio if missing
+    fall 2                           # check twice before setting down
+    rise 1                           # check once before setting up
+}
+
+vrrp_script chk_lb {
+    script "/usr/bin/pkill -0 haproxy"  # pkill -0 is cheaper than pidof
+    interval 1                          # check every second
+    weight 6                            # add 6 points of prio if present
+    fall 2                              # check twice before setting down
+    rise 1                              # check once before setting up
+}
+
+vrrp_instance vrrp_1 {
+    interface {{ ansible_default_ipv4.interface }}  # Change network interface name
+    
+    {% raw %}
+    {{ $hostname := (mustEnv "HOSTNAME") }}
+    {{ if sprig_hasSuffix "t1-1" (sprig_first (sprig_splitList "." $hostname)) }}
+    state MASTER
+    {{ else }}
+    state BACKUP
+    {{ end }}
+    {% endraw %}
+    priority 101
+
+    {% raw %}
+    virtual_router_id {{ mustEnv "VIP_ROUTER_ID" }}
+    virtual_ipaddress_excluded {
+        {{ mustEnv "VIP_ADDRESS" }}
+    }
+    {% endraw %}
+
+    track_interface {
+        {{ ansible_default_ipv4.interface }} weight -2  # Change network interface name
+    }
+    track_script {
+        chk_sshd
+        chk_lb
+    }
+}

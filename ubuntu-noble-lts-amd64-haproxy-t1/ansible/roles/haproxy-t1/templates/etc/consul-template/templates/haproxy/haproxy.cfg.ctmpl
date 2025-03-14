@@ -1,0 +1,97 @@
+## {{ ansible_managed }}
+# Consul Template Managed - HAProxy
+# Used to re-render every boot so the service starts
+{% raw %}
+# Boot ID - {{ file "/proc/sys/kernel/random/boot_id" }}
+{% endraw %}
+
+global
+        log stdout  format raw  local0  info
+        chroot /var/lib/haproxy
+        stats socket /run/haproxy/admin.sock mode 660 level admin
+        stats timeout 30s
+        user haproxy
+        group haproxy
+        daemon
+
+        # Default SSL material locations
+        ca-base /etc/ssl/certs
+        crt-base /etc/ssl/private
+
+        # See: https://ssl-config.mozilla.org/#server=haproxy&version=3.0.6&config=modern&openssl=3.4.0&guideline=5.7
+        ssl-default-bind-curves X25519:prime256v1:secp384r1
+        ssl-default-bind-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+        ssl-default-bind-options prefer-client-ciphers ssl-min-ver TLSv1.3 no-tls-tickets
+
+        ssl-default-server-curves X25519:prime256v1:secp384r1
+        ssl-default-server-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+        ssl-default-server-options ssl-min-ver TLSv1.3 no-tls-tickets
+
+defaults
+        log     global
+        mode    tcp
+        option  tcplog
+        option  dontlognull
+
+        timeout connect 5500 # +10% from t2, so t2 has time to error first
+        timeout client  55000 # +10% from t2, so t2 has time to error first
+        timeout server  55000 # +10% from t2, so t2 has time to error first
+
+        errorfile 400 /etc/haproxy/errors/400.http
+        errorfile 403 /etc/haproxy/errors/403.http
+        errorfile 408 /etc/haproxy/errors/408.http
+        errorfile 500 /etc/haproxy/errors/500.http
+        errorfile 502 /etc/haproxy/errors/502.http
+        errorfile 503 /etc/haproxy/errors/503.http
+        errorfile 504 /etc/haproxy/errors/504.http
+
+# https://www.haproxy.com/blog/exploring-the-haproxy-stats-page
+frontend stats
+        bind   :8404
+        mode   http
+        option httplog
+        stats  enable
+        stats  uri /stats
+        stats  refresh 10s
+
+# https://www.haproxy.com/documentation/haproxy-configuration-tutorials/alerts-and-monitoring/prometheus/
+frontend prometheus
+        bind :8405
+        mode http
+        http-request use-service prometheus-exporter if { path /metrics }
+        no log
+
+# https://www.haproxy.com/documentation/haproxy-enterprise/administration/high-availability/active-active/#deploy-layer-4-load-balancers
+listen load_balancer_cluster_80
+        bind :80
+
+        default_backend default_http
+
+frontend load_balancer_cluster_443
+        bind :443
+
+        default_backend default_https
+
+resolvers nameservers
+        parse-resolv-conf
+
+backend default_http
+        balance leastconn
+        default-server on-marked-down shutdown-sessions
+
+        {% raw %}
+        {{ range service (printf "%s|any" (mustEnv "HAPROXY_HTTP_BACKEND_CONSUL_SERVICE")) }}
+        server {{ .Node }} {{ .Node }}.us-homelab1.hl.rmb938.me:{{ .Port }} check resolvers nameservers init-addr last,libc,none observe layer4 on-error mark-down send-proxy-v2
+        {{- end }}
+        {% endraw %}
+
+backend default_https
+        balance leastconn
+        default-server on-marked-down shutdown-sessions
+
+        {% raw %}
+        {{ range service (printf "%s|any" (mustEnv "HAPROXY_HTTPS_BACKEND_CONSUL_SERVICE")) }}
+        server {{ .Node }} {{ .Node }}.us-homelab1.hl.rmb938.me:{{ .Port }} check resolvers nameservers init-addr last,libc,none observe layer4 on-error mark-down send-proxy-v2
+        {{- end }}
+        {% endraw %}
+

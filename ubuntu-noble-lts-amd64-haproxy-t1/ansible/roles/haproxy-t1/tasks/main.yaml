@@ -1,0 +1,166 @@
+---
+# Start HAProxy
+# TODO: add to unattended upgrades
+- name: Add HAProxy 3.0 PPA
+  ansible.builtin.apt_repository:
+    repo: ppa:vbernat/haproxy-3.0
+    state: present
+
+- name: Install HAProxy
+  ansible.builtin.package:
+    name: 'haproxy=3.0.*'
+    state: present
+
+- name: Own HAProxy Dir
+  ansible.builtin.file:
+    path: /etc/haproxy
+    state: directory
+    mode: '0755'
+    owner: haproxy
+    group: haproxy
+
+- name: Own HAProxy Config
+  ansible.builtin.file:
+    path: /etc/haproxy/haproxy.cfg
+    state: file
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+
+- name: HAProxy T1 Service Consul Config
+  ansible.builtin.template:
+    src: etc/consul.d/50_haproxy-t1.service.hcl
+    dest: /etc/consul.d/50_haproxy-t1.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+# End HAProxy
+
+# Start Consul Template for HAProxy
+- name: Add haproxy to sudoers
+  community.general.sudoers:
+    name: haproxy
+    user: haproxy
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart haproxy
+    state: present
+
+- name: Configure Consul Template for HAProxy
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-haproxy.hcl
+    dest: /etc/consul-template/consul-template-haproxy.hcl
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+
+- name: Create Consul Template for HAProxy Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/haproxy/
+    state: directory
+    mode: "0744"
+    owner: haproxy
+    group: haproxy
+
+- name: Place Consul Template for HAProxy Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/haproxy/{{ item | basename }}"
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+  with_fileglob:
+    - ../files/etc/consul-template/templates/haproxy/*.ctmpl
+
+- name: Place Consul Template for HAProxy Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/haproxy/{{ item | basename }}"
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/haproxy/*.ctmpl
+
+- name: Consul Template for HAProxy SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-haproxy.service
+    dest: /etc/systemd/system/consul-template-haproxy.service
+    mode: "0644"
+# End Consul Template for HAProxy
+
+# Start Keepalived
+- name: Install Keepalived
+  ansible.builtin.package:
+    name: keepalived
+    state: present
+
+- name: Create keepalived user
+  ansible.builtin.user:
+    name: keepalived
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+    home: /var/lib/keepalived
+
+- name: Own keepalived config dir
+  ansible.builtin.file:
+    path: /etc/keepalived
+    owner: keepalived
+    group: keepalived
+# End Keepalived
+
+# Start Consul Template for Keepalived
+- name: Add keepalived to sudoers
+  community.general.sudoers:
+    name: keepalived
+    user: keepalived
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart keepalived
+    state: present
+
+- name: Configure Consul Template for keepalived
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-keepalived.hcl
+    dest: /etc/consul-template/consul-template-keepalived.hcl
+    mode: "0644"
+    owner: keepalived
+    group: keepalived
+
+- name: Create Consul Template for keepalived Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/keepalived/
+    state: directory
+    mode: "0744"
+    owner: keepalived
+    group: keepalived
+
+- name: Place Consul Template for keepalived Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/keepalived/{{ item | basename }}"
+    mode: "0644"
+    owner: keepalived
+    group: keepalived
+  with_fileglob:
+    - ../files/etc/consul-template/templates/keepalived/*.ctmpl
+
+- name: Place Consul Template for keepalived Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/keepalived/{{ item | basename }}"
+    mode: "0644"
+    owner: keepalived
+    group: keepalived
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/keepalived/*.ctmpl
+
+- name: Consul Template for keepalived SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-keepalived.service
+    dest: /etc/systemd/system/consul-template-keepalived.service
+    mode: "0644"
+# End Consul Template for HAProxy
