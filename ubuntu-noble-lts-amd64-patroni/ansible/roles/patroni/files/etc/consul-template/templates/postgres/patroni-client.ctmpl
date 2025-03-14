@@ -1,0 +1,10 @@
+# Consul Template Managed - postgres
+# Used to re-render every boot so the service starts
+# Boot ID - {{ file "/proc/sys/kernel/random/boot_id" }}
+
+{{ $myPgCluster := (mustEnv "CONSUL_ROLE") }}
+{{- with pkiCert (printf "pki_%s_patroni_intermediate/issue/client" ($myPgCluster | replaceAll "-" "_")) "common_name=patroni" -}}
+{{ .Cert }}{{ .CA }}{{ .CAChain }}{{ .Key }}
+{{ .Key | writeToFile "/etc/patroni/patroni-client.key" "" "" "0600" }}
+{{ (printf "%s%s" .Cert (.CAChain | join "")) | writeToFile "/etc/patroni/patroni-client.crt" "" "" "0644" }}
+{{- end -}}

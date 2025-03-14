@@ -1,0 +1,146 @@
+# {{ ansible_managed }}
+# Consul Template Managed - postgres
+# Used to re-render every boot so the service starts
+{% raw %}
+# Boot ID - {{ file "/proc/sys/kernel/random/boot_id" }}
+{% endraw %}
+{% raw %}{{ $myPgCluster := (mustEnv "CONSUL_ROLE") }}{% endraw %}
+
+scope: {% raw %}{{ $myPgCluster }}{% endraw %}
+
+name: "{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}"
+namespace: {% raw %}{{ $myPgCluster }}{% endraw %}
+
+log:
+  format: "%(asctime)s %(levelname)s: %(message)s"
+  level: INFO
+  max_queue_size: 1000
+  traceback_level: ERROR
+  type: plain
+
+restapi:
+  connect_address: "{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:8008"
+  listen: 0.0.0.0:8008
+  certfile: /etc/patroni/postgres-server.crt
+  keyfile: /etc/patroni/postgres-server.key
+
+  # When optional client certificates are required for all unsafe REST API endpoints.
+  verify_client: optional
+  cafile: /etc/patroni/patroni-client-ca.crt
+
+ctl:
+  certfile: /etc/patroni/patroni-client.crt
+  keyfile: /etc/patroni/patroni-client.key
+  cacert: /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+
+# The bootstrap configuration. Works only when the cluster is not yet initialized.
+# If the cluster is already initialized, all changes in the `bootstrap` section are ignored!
+bootstrap:
+  # This section will be written into <dcs>:/<namespace>/<scope>/config after initializing
+  # new cluster and all other cluster members will use it as a `global configuration`.
+  # WARNING! If you want to change any of the parameters that were set up
+  # via `bootstrap.dcs` section, please use `patronictl edit-config`!
+  dcs:
+    loop_wait: 10
+    retry_timeout: 10
+    ttl: 30
+    # Max history so we don't get too large
+    # this may need to be smaller
+    max_timelines_history: 1000
+    # Enforce checking timeline so we don't accidently rollback and loose data
+    # Ex. If leader is stopped, new leader is elected, data is written, then all
+    # nodes are stopped. If the first leader is started it'll become leader and
+    # cause other nodes that are started to be out of sync and cause data loss.
+    # Checking timeline prevents a node from becoming leader if it's on an old timeline.
+    check_timeline: true
+    postgresql:
+      parameters:
+        hot_standby: "on"
+        max_connections: 100
+        max_locks_per_transaction: 64
+        max_prepared_transactions: 0
+        max_replication_slots: 10
+        max_wal_senders: 10
+        max_worker_processes: 8
+        track_commit_timestamp: "off"
+        wal_keep_size: 128MB
+        wal_level: replica
+        wal_log_hints: "on"
+      use_pg_rewind: true
+      use_slots: true
+
+consul:
+  host: "127.0.0.1"
+  port: 8500
+  schema: http
+  consistency: consistent
+  register_service: true
+
+postgresql:
+  authentication:
+    replication:
+      username: replicator
+      sslmode: verify-full
+      sslcert: /etc/patroni/postgres-user-replicator.crt
+      sslkey: /etc/patroni/postgres-user-replicator.key
+      sslrootcert: system
+    rewind:
+      username: rewind
+      sslmode: verify-full
+      sslcert: /etc/patroni/postgres-user-rewind.crt
+      sslkey: /etc/patroni/postgres-user-rewind.key
+      sslrootcert: system
+    superuser:
+      username: postgres
+      sslmode: verify-full
+      sslcert: /etc/patroni/postgres-user-postgres.crt
+      sslkey: /etc/patroni/postgres-user-postgres.key
+      sslrootcert: system
+  bin_dir: /usr/lib/postgresql/17/bin/
+  data_dir: /var/lib/postgresql/17/patroni/
+  listen: 0.0.0.0:5432
+  connect_address: "{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:5432"
+  proxy_address: "{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:6432"
+  use_unix_socket: true
+  use_unix_socket_repl: true
+  parameters:
+    ssl: true
+    ssl_cert_file: "/etc/patroni/postgres-server.crt"
+    ssl_key_file: "/etc/patroni/postgres-server.key"
+    ssl_ca_file: "/etc/patroni/postgres-client-ca.crt"
+    password_encryption: "scram-sha-256"
+    unix_socket_directories: /var/run/postgresql
+    unix_socket_permissions: "0700"
+  pg_hba:
+    # Anyone with socket access is blindly trusted
+    # If you have socket access you have db file access
+    # so it doesn't matter
+    # Local Connections, specific users for patroni
+    - local   replication replicator trust
+    - local   all         rewind     trust
+    - local   postgres    postgres   trust
+    # Local Connections, everyone else
+    - local   all         all        trust
+
+    # Allow other nodes in the cluster to connect
+    {% raw %}
+    # Using consul nodes instead of services because all the patroni services
+    # won't be created until all the nodes are clustered, so you end up with a
+    # chicken and egg situation. So using nodes with filtering on the consul_role
+    # since it should be unique for the cluster.
+    {{- range nodes }}
+    {{- if eq .Meta.consul_role $myPgCluster }}
+    # Consul Node - {{ .Node }}
+    - hostssl replication replicator {{ .Address }}/32 cert
+    - hostssl all         rewind     {{ .Address }}/32 cert
+    - hostssl all         postgres   {{ .Address }}/32 cert
+    {{- end }}
+    {{- end }}
+    {% endraw %}
+
+tags:
+  clonefrom: true
+  failover_priority: 1
+  noloadbalance: false
+  nostream: false
+  nosync: false

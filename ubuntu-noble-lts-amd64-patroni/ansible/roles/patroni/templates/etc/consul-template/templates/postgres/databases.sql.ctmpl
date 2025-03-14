@@ -1,0 +1,43 @@
+--- {{ ansible_managed }}
+--- Consul Template Managed - postgres
+
+CREATE EXTENSION IF NOT EXISTS dblink;
+
+{% raw %}
+{{ $myPgCluster := (mustEnv "CONSUL_ROLE") }}
+-- This creates users and databases based on keys under the {{ printf "%s/databases" $myPgCluster }} consul folder
+-- These users and databases are not cleaned up when deleted for safey reasons.
+-- If you need to delete a database and user you need to do it manually by running
+-- DROP DATABASE %s;
+-- DROP USER %s;
+
+{{ range ls (printf "%s/databases" $myPgCluster) }}
+  {{ $databaseName := .Key }}
+
+-- Check if the user '{{ $databaseName }}' exists and create it if it does not
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    -- Query the system catalog to check for the user
+    SELECT 1 FROM pg_user where usename = '{{ $databaseName }}'
+  ) THEN
+    -- Execute the CREATE USER statement
+    CREATE USER {{ $databaseName }};
+  END IF;
+END $$;
+
+-- Check if the database '{{ $databaseName }}' exists and create it if it does not
+DO $$
+BEGIN
+  IF NOT EXISTS (
+      -- Query the system catalog to check for the database
+      SELECT 1 FROM pg_database WHERE datname = '{{ $databaseName }}'
+  ) THEN
+      -- Execute the CREATE DATABASE statement
+      PERFORM dblink_exec('dbname=postgres', 'CREATE DATABASE {{ $databaseName }} WITH OWNER = {{ $databaseName }}');
+  END IF;
+END $$;
+
+{{ end }}
+
+{% endraw %}

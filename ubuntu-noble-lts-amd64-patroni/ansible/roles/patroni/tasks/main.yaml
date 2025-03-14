@@ -1,0 +1,242 @@
+---
+# Start Cloud Init Scripts
+- name: Cloud Init Scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/var/lib/cloud/scripts/custom-per-boot/{{ item | basename }}"
+    mode: "0755"
+    owner: root
+    group: root
+  with_fileglob:
+    - ../files/var/lib/cloud/scripts/custom-per-boot/*.sh
+# End Cloud Init Scripts
+
+# Start Postgres
+- name: Create postgresql-common share
+  ansible.builtin.file:
+    path: /usr/share/postgresql-common/pgdg
+    state: directory
+    mode: "0755"
+
+- name: PostgreSQL keyring
+  ansible.builtin.get_url:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    dest: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+    checksum: sha256:0144068502a1eddd2a0280ede10ef607d1ec592ce819940991203941564e8e76
+    mode: "0644"
+
+- name: Add PostgreSQL repo
+  ansible.builtin.apt_repository:
+    repo: >
+      deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc]
+      https://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main
+    state: present
+
+- name: Install Patroni, PostgreSQL, and PgBouncer
+  ansible.builtin.package:
+    name:
+      - python3-psycopg2
+      - python3-consul
+      - postgresql-17
+      - patroni
+      - pgbouncer
+    state: present
+
+- name: Disable PostgreSQL Service
+  ansible.builtin.systemd_service:
+    name: postgresql
+    state: stopped
+    enabled: false
+
+- name: Disable Patroni Service
+  ansible.builtin.systemd_service:
+    name: patroni
+    state: stopped
+    enabled: false
+
+- name: Disable PgBouncer Service
+  ansible.builtin.systemd_service:
+    name: pgbouncer
+    state: stopped
+    enabled: false
+
+- name: Remove PostgreSQL 17 Dir
+  ansible.builtin.file:
+    path: /var/lib/postgresql/17
+    state: absent
+# End Postgres
+
+- name: Patroni Config Dir
+  ansible.builtin.file:
+    path: /etc/patroni/
+    state: directory
+    mode: "0755"
+    owner: postgres
+    group: postgres
+
+- name: PgBouncer Config Dir
+  ansible.builtin.file:
+    path: /etc/pgbouncer/
+    state: directory
+    mode: "0755"
+    owner: postgres
+    group: postgres
+
+# Start Consul Template Postgres
+- name: Add postgres to sudoers
+  community.general.sudoers:
+    name: postgres
+    user: postgres
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart patroni
+      - /usr/bin/systemctl reload-or-restart pgbouncer
+    state: present
+
+- name: Configure Consul Template for Postgres
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-postgres.hcl
+    dest: /etc/consul-template/consul-template-postgres.hcl
+    mode: "0644"
+    owner: postgres
+    group: postgres
+
+- name: Create Consul Template for Postgres Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/postgres/
+    state: directory
+    mode: "0744"
+    owner: postgres
+    group: postgres
+
+- name: Place Consul Template for Postgres Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/postgres/{{ item | basename }}"
+    mode: "0644"
+    owner: postgres
+    group: postgres
+  with_fileglob:
+    - ../files/etc/consul-template/templates/postgres/*.ctmpl
+
+- name: Place Consul Template for Postgres Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/postgres/{{ item | basename }}"
+    mode: "0644"
+    owner: postgres
+    group: postgres
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/postgres/*.ctmpl
+
+- name: Consul Template for Postgres SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-postgres.service
+    dest: /etc/systemd/system/consul-template-postgres.service
+    mode: "0644"
+# End Consul Template Postgres
+
+# Start Patroni
+- name: Patroni Step Certs SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/patroni-step-certs.service
+    dest: /etc/systemd/system/patroni-step-certs.service
+    mode: "0644"
+
+- name: Create Patroni systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/patroni.service.d/
+    state: directory
+    mode: "0755"
+
+- name: Patroni systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/patroni.service.d/override.conf
+    dest: /etc/systemd/system/patroni.service.d/override.conf
+    mode: "0644"
+
+- name: Cron to renew Postgres certificates
+  ansible.builtin.cron:
+    name: "renew postgres certificates"
+    special_time: "hourly"
+    # Rekey needs to happen against the CA, RA's don't support rekey
+    # https://smallstep.com/docs/step-ca/registration-authority-ra-mode/#stepcas-limitations
+    job: >-
+      step ca rekey /etc/patroni/postgres-server.crt
+      /etc/patroni/postgres-server.key
+      --ca-url {{ step_ca_url }}
+      --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+      --force --expires-in 720h --exec "systemctl try-reload-or-restart patroni"
+    state: present
+# End Patroni
+
+# Start PgBouncer
+- name: Place PgBouncer Config
+  ansible.builtin.template:
+    src: etc/pgbouncer/pgbouncer.ini
+    dest: /etc/pgbouncer/pgbouncer.ini
+    mode: "0600"
+    owner: postgres
+    group: postgres
+  register: pgbouncer_config
+
+- name: Place PgBouncer HBA
+  ansible.builtin.template:
+    src: etc/pgbouncer/pg_hba.conf
+    dest: /etc/pgbouncer/pg_hba.conf
+    mode: "0600"
+    owner: postgres
+    group: postgres
+  register: pgbouncer_hba
+# End PgBouncer
+
+# Start HAProxy
+- name: HAProxy Postgres Service Consul Config
+  ansible.builtin.template:
+    src: etc/consul.d/50_haproxy-postgres.service.hcl
+    dest: /etc/consul.d/50_haproxy-postgres.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Add HAProxy 3.0 PPA
+  ansible.builtin.apt_repository:
+    repo: ppa:vbernat/haproxy-3.0
+    state: present
+
+- name: Install HAProxy
+  ansible.builtin.package:
+    name: 'haproxy=3.0.*'
+    state: present
+
+- name: Own HAProxy Dir
+  ansible.builtin.file:
+    path: /etc/haproxy
+    state: directory
+    mode: '0755'
+    owner: haproxy
+    group: haproxy
+
+- name: Own HAProxy Config
+  ansible.builtin.file:
+    path: /etc/haproxy/haproxy.cfg
+    state: file
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+
+- name: Configure HAProxy
+  ansible.builtin.template:
+    src: etc/haproxy/haproxy.cfg
+    dest: /etc/haproxy/haproxy.cfg
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+  register: haproxy_config
+
+- name: Enable HAProxy
+  ansible.builtin.systemd:
+    name: haproxy
+    enabled: true
+# End HAProxy

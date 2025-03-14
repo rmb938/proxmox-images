@@ -16,6 +16,7 @@ tar -xzvf /tmp/trivy.tar.gz -C /tmp/trivy
 # Run
 sudo /tmp/trivy/trivy fs --timeout 15m --skip-files '/etc/ssh/ssh_host_*_key' --skip-dirs /dev --skip-dirs /proc \
   --skip-dirs /sys --skip-dirs /run --skip-dirs /var/run --skip-dirs /tmp --skip-dirs /var/cache/apt \
+  --skip-files /etc/ssl/private/ssl-cert-snakeoil.key \
   --skip-dirs /var/lib/apt/lists -s HIGH,CRITICAL --scanners vuln,misconfig,secret /
 
 # Cleanup
