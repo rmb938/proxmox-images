@@ -1,0 +1,3 @@
+{{- with printf "secret/%s/erlang-cookie" (mustEnv "CONSUL_ROLE") | secret -}}
+{{ .Data.cookie }}
+{{- end -}}

@@ -1,0 +1,10 @@
+# Consul Template Managed - rabbitmq
+# Used to re-render every boot so the service starts
+# Boot ID - {{ file "/proc/sys/kernel/random/boot_id" }}
+
+{{ $myRabbitMQCluster := (mustEnv "CONSUL_ROLE") }}
+{{- with pkiCert (printf "pki_%s_cluster_intermediate/issue/user-cli" ($myRabbitMQCluster | replaceAll "-" "_")) "common_name=cli" -}}
+{{ .Cert }}{{ .CA }}{{ .CAChain }}{{ .Key }}
+{{ .Key | writeToFile "/etc/rabbitmq/rabbitmq-cluster-cli.key" "" "" "0600" }}
+{{ (printf "%s%s" .Cert (.CAChain | join "")) | writeToFile "/etc/rabbitmq/rabbitmq-cluster-cli.crt" "" "" "0644" }}
+{{- end -}}

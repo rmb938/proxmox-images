@@ -1,0 +1,4 @@
+{{ $myRabbitMQCluster := (mustEnv "CONSUL_ROLE") }}
+{{ with secret (printf "pki_%s_root/cert/ca" ($myRabbitMQCluster | replaceAll "-" "_")) }}
+{{ .Data.certificate }}
+{{ end }}

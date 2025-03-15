@@ -1,0 +1,221 @@
+---
+# Start Cloud Init Scripts
+- name: Cloud Init Scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/var/lib/cloud/scripts/custom-per-boot/{{ item | basename }}"
+    mode: "0755"
+    owner: root
+    group: root
+  with_fileglob:
+    - ../files/var/lib/cloud/scripts/custom-per-boot/*.sh
+# End Cloud Init Scripts
+
+- name: RabbitMQ Prometheus Service Consul Config
+  ansible.builtin.template:
+    src: etc/consul.d/50_rabbitmq_prometheus.service.hcl
+    dest: /etc/consul.d/50_rabbitmq_prometheus..service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+  register: rabbitmq_prometheus_service_consul_config
+
+# Start RabbitMQ
+- name: RabbitMQ Team keyring
+  ansible.builtin.get_url:
+    url: https://keys.openpgp.org/vks/v1/by-fingerprint/0A9AF2115F4687BD29803A206B73A36E6026DFCA
+    dest: /usr/share/keyrings/com.rabbitmq.team.asc
+    checksum: sha256:f06ccb0568a012e751e276c15b733494147fbb0663c79ab77f3574def4767f99
+    mode: "0644"
+
+- name: Cloudsmith modern Erlang repository keyring
+  ansible.builtin.get_url:
+    url: https://github.com/rabbitmq/signing-keys/releases/download/3.0/cloudsmith.rabbitmq-erlang.E495BB49CC4BBE5B.key
+    dest: /usr/share/keyrings/rabbitmq.E495BB49CC4BBE5B.asc
+    checksum: sha256:84df2e5fd80d464c3eb9acd2f751b2f6a723438200915dd50fbf12f08698e4ec
+    mode: "0644"
+
+- name: Cloudsmith RabbitMQ repository keyring
+  ansible.builtin.get_url:
+    url: https://github.com/rabbitmq/signing-keys/releases/download/3.0/cloudsmith.rabbitmq-server.9F4587F226208342.key
+    dest: /usr/share/keyrings/rabbitmq.9F4587F226208342.asc
+    checksum: sha256:17b3eeb98b7aabe659b0e2579715d1ae4e328b58a401434599495779c59ac73a
+    mode: "0644"
+
+- name: Add Erlang repo
+  ansible.builtin.apt_repository:
+    repo: >
+      deb [arch=amd64 signed-by=/usr/share/keyrings/rabbitmq.E495BB49CC4BBE5B.asc] https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-erlang/deb/ubuntu noble main
+      deb-src [signed-by=/usr/share/keyrings/rabbitmq.E495BB49CC4BBE5B.asc] https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-erlang/deb/ubuntu noble main
+    state: present
+
+- name: Add RabbitMQ repo
+  ansible.builtin.apt_repository:
+    repo: >
+      deb [arch=amd64 signed-by=/usr/share/keyrings/rabbitmq.9F4587F226208342.asc] https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/ubuntu noble main
+      deb-src [signed-by=/usr/share/keyrings/rabbitmq.9F4587F226208342.asc] https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/ubuntu noble main
+    state: present
+
+- name: Install Erlang
+  ansible.builtin.package:
+    name:
+      - erlang-base
+      - erlang-asn1
+      - erlang-crypto
+      - erlang-eldap
+      - erlang-ftp
+      - erlang-inets
+      - erlang-mnesia
+      - erlang-os-mon
+      - erlang-parsetools
+      - erlang-public-key
+      - erlang-runtime-tools
+      - erlang-snmp
+      - erlang-ssl
+      - erlang-syntax-tools
+      - erlang-tftp
+      - erlang-tools
+      - erlang-xmerl
+    state: present
+
+- name: Install RabbitMQ
+  ansible.builtin.package:
+    name:
+      - rabbitmq-server
+    state: present
+
+- name: Disable RabbitMQ Service
+  ansible.builtin.systemd_service:
+    name: rabbitmq-server
+    state: stopped
+    enabled: false
+
+- name: Own rabbitmq config dir
+  ansible.builtin.file:
+    path: /etc/rabbitmq/
+    owner: rabbitmq
+    group: rabbitmq
+    mode: "0700"
+
+# Start Certs
+- name: RabbitMQ Step Certs SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/rabbitmq-server-step-certs.service
+    dest: /etc/systemd/system/rabbitmq-server-step-certs.service
+    mode: "0644"
+
+- name: Create RabbitMQ systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/rabbitmq-server.service.d/
+    state: directory
+    mode: "0755"
+
+- name: RabbitMQ systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/rabbitmq-server.service.d/override.conf
+    dest: /etc/systemd/system/rabbitmq-server.service.d/override.conf
+    mode: "0644"
+
+- name: Cron to renew RabbitMQ Cluster Server Certificates
+  ansible.builtin.cron:
+    name: "renew rabbitmq cluster certificates"
+    special_time: "hourly"
+    # Rekey needs to happen against the CA, RA's don't support rekey
+    # https://smallstep.com/docs/step-ca/registration-authority-ra-mode/#stepcas-limitations
+    job: >-
+      step ca rekey /etc/rabbitmq/rabbitmq-cluster-server.crt
+      /etc/rabbitmq/rabbitmq-cluster-server.key
+      --ca-url https://step-ca.us-homelab1.hl.rmb938.me
+      --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+      --force --expires-in 720h --exec "systemctl try-reload-or-restart rabbitmq-server"
+    state: present
+# End Certs
+
+- name: RabbitMQ Plugins
+  ansible.builtin.template:
+    src: etc/rabbitmq/enabled_plugins
+    dest: /etc/rabbitmq/enabled_plugins
+    mode: "0600"
+    owner: rabbitmq
+    group: rabbitmq
+  register: rabbitmq_plugins
+
+- name: Find erlang ssl dir
+  ansible.builtin.find:
+    paths: /usr/lib/erlang/lib
+    patterns: "ssl-*"
+    file_type: directory
+  register: found_ssl_libs
+
+- name: RabbitMQ Env
+  ansible.builtin.template:
+    src: etc/rabbitmq/rabbitmq-env.conf
+    dest: /etc/rabbitmq/rabbitmq-env.conf
+    mode: "0600"
+    owner: rabbitmq
+    group: rabbitmq
+  register: rabbitmq_env
+
+- name: RabbitMQ Inter Node TLS Config
+  ansible.builtin.template:
+    src: etc/rabbitmq/inter_node_tls.config
+    dest: /etc/rabbitmq/inter_node_tls.config
+    mode: "0600"
+    owner: rabbitmq
+    group: rabbitmq
+  register: rabbitmq_inter_node_tls_config
+# End RabbitMQ
+
+# Start Consul Template RabbitMQ
+- name: Add rabbitmq to sudoers
+  community.general.sudoers:
+    name: rabbitmq
+    user: rabbitmq
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart rabbitmq-server
+    state: present
+
+- name: Configure Consul Template for RabbitMQ
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-rabbitmq.hcl
+    dest: /etc/consul-template/consul-template-rabbitmq.hcl
+    mode: "0644"
+    owner: rabbitmq
+    group: rabbitmq
+
+- name: Create Consul Template for RabbitMQ Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/rabbitmq/
+    state: directory
+    mode: "0744"
+    owner: rabbitmq
+    group: rabbitmq
+
+- name: Place Consul Template for RabbitMQ Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/rabbitmq/{{ item | basename }}"
+    mode: "0644"
+    owner: rabbitmq
+    group: rabbitmq
+  with_fileglob:
+    - ../files/etc/consul-template/templates/rabbitmq/*.ctmpl
+
+- name: Place Consul Template for RabbitMQ Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/rabbitmq/{{ item | basename }}"
+    mode: "0644"
+    owner: rabbitmq
+    group: rabbitmq
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/rabbitmq/*.ctmpl
+
+- name: Consul Template for RabbitMQ SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-rabbitmq.service
+    dest: /etc/systemd/system/consul-template-rabbitmq.service
+    mode: "0644"
+# End Consul Template RabbitMQ

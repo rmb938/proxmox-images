@@ -1,0 +1,53 @@
+# {{ ansible_managed }}
+# Consul Template Managed - rabbitmq
+# Used to re-render every boot so the service starts
+{% raw %}
+# Boot ID - {{ file "/proc/sys/kernel/random/boot_id" }}
+{% endraw %}
+{% raw %}{{ $myRabbitMQCluster := (mustEnv "CONSUL_ROLE") }}{% endraw %}
+
+cluster_name = {% raw %}{{ $myRabbitMQCluster }}{% endraw %}
+
+cluster_partition_handling = pause_minority
+
+cluster_formation.peer_discovery_backend        = consul
+{% raw %}
+cluster_formation.consul.lock_prefix            = {{ $myRabbitMQCluster }}
+cluster_formation.consul.svc                    = {{ $myRabbitMQCluster }}
+{% endraw %}
+cluster_formation.consul.svc_addr_auto          = true
+cluster_formation.consul.svc_addr_use_nodename  = true
+cluster_formation.consul.use_longname           = true
+cluster_formation.node_cleanup.only_log_warning = true
+
+management.hsts.policy                  = max-age=16000000;
+management.headers.content_type_options = nosniff
+management.headers.xss_protection       = 1; mode=block
+management.headers.frame_options        = DENY
+
+management.ssl.port       = 15671
+management.ssl.cacertfile = /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+management.ssl.certfile   = /etc/rabbitmq/rabbitmq-cluster-server.crt
+management.ssl.keyfile    = /etc/rabbitmq/rabbitmq-cluster-server.key
+
+auth_mechanisms.1 = PLAIN
+auth_mechanisms.2 = AMQPLAIN
+auth_mechanisms.3 = EXTERNAL
+
+listeners.ssl.default = 5671
+
+ssl_cert_login_from = common_name # Only use the common name for the user
+
+ssl_options.cacertfile = /etc/rabbitmq/rabbitmq-ca.crt
+ssl_options.certfile   = /etc/rabbitmq/rabbitmq-server.crt
+ssl_options.keyfile    = /etc/rabbitmq/rabbitmq-server.key
+ssl_options.verify     = verify_peer
+
+ssl_options.fail_if_no_peer_cert = true
+
+ssl_options.versions.1 = tlsv1.3
+ssl_options.ciphers.1  = TLS_AES_256_GCM_SHA384
+ssl_options.ciphers.2  = TLS_AES_128_GCM_SHA256
+ssl_options.ciphers.3  = TLS_CHACHA20_POLY1305_SHA256
+ssl_options.ciphers.4  = TLS_AES_128_CCM_SHA256
+ssl_options.ciphers.5  = TLS_AES_128_CCM_8_SHA256
