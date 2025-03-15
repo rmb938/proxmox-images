@@ -1,4 +1,13 @@
 ---
+- name: INSTALL UTILS UBUNTU
+  ansible.builtin.package:
+    name:
+      - glances
+      - acl
+      - curl
+      - git
+    state: present
+
 - name: Create Cloud Environment
   ansible.builtin.copy:
     dest: /etc/cloud-environment
