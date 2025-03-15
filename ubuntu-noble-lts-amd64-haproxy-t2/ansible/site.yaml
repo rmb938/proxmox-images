@@ -1,0 +1,44 @@
+- name: HAProxy T2
+  hosts: all
+  become: true
+  roles:
+    - haproxy-t2
+  vars:
+    is_packer: true
+    step_ca_url: "https://step-ca.us-homelab1.hl.rmb938.me"
+    step_ra_acme_url: "https://step-ca.us-homelab1.hl.rmb938.me:9443"
+    haproxy_hosts:
+      hashi-vault:
+        host: hashi-vault.haproxy.us-homelab1.hl.rmb938.me
+        config:
+          - balance roundrobin
+
+          - option forwardfor
+          - option forwarded
+
+          # Vault Listener Config
+          # x_forwarded_for_authorized_addrs=["192.168.23.49", "192.168.23.50"]
+          # x_forwarded_for_client_cert_header="X-SSL-Client-Cert"
+          # x_forwarded_for_client_cert_header_decoders="BASE64"
+
+          - http-request lua.clientcert "req"
+          - http-response lua.clientcert "res"
+
+          - option httpchk GET /v1/sys/health?standbycode=200
+
+          - server hashi-vault-1 hashi-vault-1.us-homelab1.hl.rmb938.me:8200 check resolvers nameservers init-addr last,libc,none observe layer7 on-error mark-down ssl verify required ca-file @system-ca # noqa: yaml[line-length]
+          - server hashi-vault-2 hashi-vault-2.us-homelab1.hl.rmb938.me:8200 check resolvers nameservers init-addr last,libc,none observe layer7 on-error mark-down ssl verify required ca-file @system-ca # noqa: yaml[line-length]
+          - server hashi-vault-3 hashi-vault-3.us-homelab1.hl.rmb938.me:8200 check resolvers nameservers init-addr last,libc,none observe layer7 on-error mark-down ssl verify required ca-file @system-ca # noqa: yaml[line-length]
+
+      hashi-consul:
+        host: hashi-consul.haproxy.us-homelab1.hl.rmb938.me
+        config:
+          - balance roundrobin
+
+          - option forwardfor
+          - option forwarded
+
+          - option httpchk GET /v1/status/leader
+          - server consul-server-1 hashi-consul-1.us-homelab1.hl.rmb938.me:8501 check resolvers nameservers init-addr last,libc,none observe layer7 on-error mark-down ssl verify required ca-file @system-ca # noqa: yaml[line-length]
+          - server consul-server-2 hashi-consul-2.us-homelab1.hl.rmb938.me:8501 check resolvers nameservers init-addr last,libc,none observe layer7 on-error mark-down ssl verify required ca-file @system-ca # noqa: yaml[line-length]
+          - server consul-server-3 hashi-consul-3.us-homelab1.hl.rmb938.me:8501 check resolvers nameservers init-addr last,libc,none observe layer7 on-error mark-down ssl verify required ca-file @system-ca # noqa: yaml[line-length]

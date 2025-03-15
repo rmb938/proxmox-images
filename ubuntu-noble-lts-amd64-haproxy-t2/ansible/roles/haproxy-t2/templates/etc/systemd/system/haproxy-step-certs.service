@@ -1,0 +1,26 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="Generate Step CA certificates for haproxy"
+
+Requires=network-online.target
+
+After=network-online.target
+ConditionFileNotEmpty=!/etc/ssl/private/haproxy.crt
+
+# Vault Certs should go first before we run
+# This is just to prevent both processes from using port 80
+# We probably should just implement a common script and do
+# some locking
+After=vault-step-certs.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+ExecStart=/usr/bin/step ca certificate *.haproxy.us-homelab1.hl.rmb938.me /etc/ssl/private/haproxy.crt /etc/ssl/private/haproxy.crt.key --ca-url {{ step_ra_acme_url }} --x5c-cert=/etc/haproxy/step-x5c.crt --x5c-key=/etc/haproxy/step-x5c.key --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+KillMode=process
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

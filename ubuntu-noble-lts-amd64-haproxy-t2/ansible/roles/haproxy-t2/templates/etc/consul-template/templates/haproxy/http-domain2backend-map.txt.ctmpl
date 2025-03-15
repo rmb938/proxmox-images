@@ -1,0 +1,14 @@
+{% for key, value in haproxy_hosts.items() %}
+    {{ value.host }}    {{ key }}
+{% endfor %}
+
+{% raw %}
+{{- range services }}
+    {{- range service .Name }}
+        {{- if eq .ServiceMeta.haproxy_t2 "true" }}
+    {{ .Name }}.haproxy.us-homelab1.hl.rmb938.me    {{ .Name }}
+        {{- break}}
+        {{- end }}
+    {{- end }}
+{{- end }}
+{% endraw %}

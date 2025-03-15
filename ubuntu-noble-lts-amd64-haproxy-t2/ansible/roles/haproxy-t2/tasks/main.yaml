@@ -1,0 +1,148 @@
+---
+# Start HAProxy
+# TODO: add to unattended upgrades
+- name: Add HAProxy 3.0 PPA
+  ansible.builtin.apt_repository:
+    repo: ppa:vbernat/haproxy-3.0
+    state: present
+
+- name: Install HAProxy
+  ansible.builtin.package:
+    name: 'haproxy=3.0.*'
+    state: present
+
+- name: Own HAProxy Dir
+  ansible.builtin.file:
+    path: /etc/haproxy
+    state: directory
+    mode: '0755'
+    owner: haproxy
+    group: haproxy
+
+- name: Own HAProxy Config
+  ansible.builtin.file:
+    path: /etc/haproxy/haproxy.cfg
+    state: file
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+
+- name: HAProxy T2 Service Consul Config
+  ansible.builtin.template:
+    src: etc/consul.d/50_haproxy-t2.service.hcl
+    dest: /etc/consul.d/50_haproxy-t2.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Disable HAProxy
+  ansible.builtin.systemd_service:
+    name: haproxy
+    enabled: false
+
+- name: Create HAProxy lua dir
+  ansible.builtin.file:
+    path: /etc/haproxy/lua/
+    state: directory
+    mode: "0770"
+    owner: haproxy
+    group: haproxy
+
+- name: Copy HAProxy Lua Scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/haproxy/lua/{{ item | basename }}"
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+  with_fileglob:
+    - ../files/etc/haproxy/lua/*.lua
+# End HAProxy
+
+# Start Consul Template for HAProxy
+- name: Add haproxy to sudoers
+  community.general.sudoers:
+    name: haproxy
+    user: haproxy
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart haproxy
+    state: present
+
+- name: Configure Consul Template for HAProxy
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-haproxy.hcl
+    dest: /etc/consul-template/consul-template-haproxy.hcl
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+
+- name: Create Consul Template for HAProxy Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/haproxy/
+    state: directory
+    mode: "0744"
+    owner: haproxy
+    group: haproxy
+
+- name: Place Consul Template for HAProxy Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/haproxy/{{ item | basename }}"
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+  with_fileglob:
+    - ../files/etc/consul-template/templates/haproxy/*.ctmpl
+
+- name: Place Consul Template for HAProxy Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/haproxy/{{ item | basename }}"
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/haproxy/*.ctmpl
+
+- name: Consul Template for HAProxy SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-haproxy.service
+    dest: /etc/systemd/system/consul-template-haproxy.service
+    mode: "0644"
+# End Consul Template for HAProxy
+
+# Start Certs
+- name: HAProxy Step Certs SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/haproxy-step-certs.service
+    dest: /etc/systemd/system/haproxy-step-certs.service
+    mode: "0644"
+
+- name: Create HAProxy systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/haproxy.service.d/
+    state: directory
+    mode: "0755"
+
+- name: HAProxy systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/haproxy.service.d/override.conf
+    dest: /etc/systemd/system/haproxy.service.d/override.conf
+    mode: "0644"
+
+- name: Cron to renew HAProxy certificates
+  ansible.builtin.cron:
+    name: "renew haproxy certificates"
+    special_time: "hourly"
+    # Rekey needs to happen against the CA, RA's don't support rekey
+    # https://smallstep.com/docs/step-ca/registration-authority-ra-mode/#stepcas-limitations
+    job: >-
+      step ca rekey /etc/ssl/private/haproxy.crt
+      /etc/ssl/private/haproxy.crt.key
+      --ca-url {{ step_ca_url }}
+      --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+      --force --expires-in 720h --exec "systemctl try-reload-or-restart haproxy"
+    state: present
+# End Certs
