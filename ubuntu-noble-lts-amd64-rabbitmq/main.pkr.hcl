@@ -30,7 +30,7 @@ variable "clone_vm_id" {
   type = number
 }
 
-source "proxmox-clone" "ubuntu-noble-haproxy-t2" {
+source "proxmox-clone" "ubuntu-noble-rabbitmq" {
   username    = "${var.proxmox_username}"
   token       = "${var.proxmox_token}"
   proxmox_url = "https://${var.proxmox_hostname}:8006/api2/json"
@@ -69,7 +69,7 @@ source "proxmox-clone" "ubuntu-noble-haproxy-t2" {
 }
 
 build {
-  sources = ["source.proxmox-clone.ubuntu-noble-haproxy-t2"]
+  sources = ["source.proxmox-clone.ubuntu-noble-rabbitmq"]
 
   // Packer setup
   provisioner "shell" {
