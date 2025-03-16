@@ -1,24 +1,4 @@
 ---
-# Start Consul Tempalte for Consul
-- name: Configure Consul Template for Consul
-  ansible.builtin.template:
-    src: etc/consul-template/consul/50_keystone.service.hcl
-    dest: /etc/consul-template/consul/50_keystone.service.hcl
-    mode: "0644"
-    owner: consul
-    group: consul
-
-- name: Place Consul Template for Consul Templates Templates
-  ansible.builtin.template:
-    src: "{{ item }}"
-    dest: "/etc/consul-template/templates/consul/{{ item | basename }}"
-    mode: "0644"
-    owner: consul
-    group: consul
-  with_fileglob:
-    - ../templates/etc/consul-template/templates/consul/*.ctmpl
-# End Consul Tempalte for Consul
-
 # Start Install
 - name: UBUNTU CLOUD KEYRING
   ansible.builtin.package:
@@ -48,11 +28,35 @@
       - keystone
     state: present
 
+- name: GET PACKAGE FACTS
+  ansible.builtin.package_facts:
+    manager: "auto"
+
 - name: INSTALL openstack-keystone-hashicorp-vault-provider
   ansible.builtin.pip:
     name: git+https://github.com/rmb938/openstack-keystone-hashicorp-vault-provider.git@1.0.1
     break_system_packages: true
 # End Install
+
+# Start Consul Tempalte for Consul
+- name: Configure Consul Template for Consul
+  ansible.builtin.template:
+    src: etc/consul-template/consul/50_keystone.service.hcl
+    dest: /etc/consul-template/consul/50_keystone.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Place Consul Template for Consul Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/consul/{{ item | basename }}"
+    mode: "0644"
+    owner: consul
+    group: consul
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/consul/*.ctmpl
+# End Consul Tempalte for Consul
 
 - name: Place fluentbit input for keystone
   ansible.builtin.template:
@@ -199,3 +203,29 @@
 # End Keystone
 
 # TODO: figure out how to do db migrations and bootstrap
+#   could be 2 services that apache2 Wants and is After
+#   migrations service
+#     python script that does a consul lock
+#     does a keystone-manage db_sync --check
+#       if exit code == 2 it needs to be expanded
+#       exit code == 1 - error
+#       any other exit code do nothing
+#     if needs to be expanded run a db_sync --expand
+#     release lock
+#   bootstrap service
+#     python script that does a consul lock
+#     does a keystone-manage bootstrap
+#     pull admin password from vault
+#     urls and regions are hard coded for now
+#     release lock
+#   migration service contract timer
+#     probably like once a day or something
+#     python script that does a consul lock
+#     does a keystone-manage db_sync --check
+#       if exit code == 4 it needs to be expanded
+#       exit code == 1 - error
+#       any other exit code do nothing
+#     if needs to be expanded check all services in the openstack-keystone service
+#       make sure all their meta keystone_version keys are the same
+#       once they are all the same run a db_sync --contract
+#     release lock

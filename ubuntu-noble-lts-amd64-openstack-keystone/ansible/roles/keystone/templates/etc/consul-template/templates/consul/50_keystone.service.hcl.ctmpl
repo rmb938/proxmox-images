@@ -18,5 +18,6 @@ services {
   meta {
     haproxy_t2 = "true"
     haproxy_t2_check_uri = "/healthcheck"
+    keystone_version = "{{ ansible_facts.packages.keystone[0].version }}"
   }
 }
