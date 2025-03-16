@@ -1,0 +1,201 @@
+---
+# Start Consul Tempalte for Consul
+- name: Configure Consul Template for Consul
+  ansible.builtin.template:
+    src: etc/consul-template/consul/50_keystone.service.hcl
+    dest: /etc/consul-template/consul/50_keystone.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Place Consul Template for Consul Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/consul/{{ item | basename }}"
+    mode: "0644"
+    owner: consul
+    group: consul
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/consul/*.ctmpl
+# End Consul Tempalte for Consul
+
+# Start Install
+- name: UBUNTU CLOUD KEYRING
+  ansible.builtin.package:
+    name: ubuntu-cloud-keyring
+    state: present
+
+- name: INSTALL OPENSTACK REPO
+  ansible.builtin.apt_repository:
+    repo: deb http://ubuntu-cloud.archive.canonical.com/ubuntu noble-updates/dalmatian main
+
+- name: INSTALL OPENSTACK CLIENT Ubuntu
+  ansible.builtin.package:
+    name:
+      - python3-openstackclient
+      - python3-osc-placement
+      - python3-octaviaclient
+
+- name: INSTALL SUPPORTING LIBS
+  ansible.builtin.package:
+    name:
+      - python3-pip
+      - python3-psycopg
+
+- name: INSTALL KEYSTONE
+  ansible.builtin.package:
+    name:
+      - keystone
+    state: present
+
+- name: INSTALL openstack-keystone-hashicorp-vault-provider
+  ansible.builtin.pip:
+    name: git+https://github.com/rmb938/openstack-keystone-hashicorp-vault-provider.git@1.0.1
+    break_system_packages: true
+# End Install
+
+- name: Place fluentbit input for keystone
+  ansible.builtin.template:
+    src: etc/fluent-bit-inputs.d/50_keystone.conf
+    dest: /etc/fluent-bit-inputs.d/50_keystone.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Place fluentbit filter for keystone
+  ansible.builtin.template:
+    src: etc/fluent-bit-filters.d/50_keystone.conf
+    dest: /etc/fluent-bit-filters.d/50_keystone.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+# Start Consul Template Keystone
+- name: Add keystone to sudoers
+  community.general.sudoers:
+    name: keystone
+    user: keystone
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart apache2
+    state: present
+
+- name: Configure Consul Template for Keystone
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-keystone.hcl
+    dest: /etc/consul-template/consul-template-keystone.hcl
+    mode: "0644"
+    owner: keystone
+    group: keystone
+  register: consul_template_keystone_config
+
+- name: Create Consul Template for Keystone Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/keystone/
+    state: directory
+    mode: "0744"
+    owner: keystone
+    group: keystone
+
+- name: Place Consul Template for Keystone Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/keystone/{{ item | basename }}"
+    mode: "0644"
+    owner: keystone
+    group: keystone
+  with_fileglob:
+    - ../files/etc/consul-template/templates/keystone/*.ctmpl
+
+- name: Place Consul Template for Keystone Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/keystone/{{ item | basename }}"
+    mode: "0644"
+    owner: keystone
+    group: keystone
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/keystone/*.ctmpl
+
+- name: Consul Template for Keystone SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-keystone.service
+    dest: /etc/systemd/system/consul-template-keystone.service
+    mode: "0644"
+# End Consul Template Keystone
+
+# Start Apache2
+- name: Remove Listen 80
+  ansible.builtin.lineinfile:
+    path: /etc/apache2/ports.conf
+    regexp: "^Listen 80$"
+    state: absent
+  register: apache2_ports
+
+- name: Enable Apache2 SSL Mod
+  ansible.builtin.command:
+    cmd: /usr/sbin/a2enmod ssl
+    creates: /etc/apache2/mods-enabled/ssl.load
+  register: apache2_ssl_mod
+
+- name: Enable Apache2 Headers Mod
+  ansible.builtin.command:
+    cmd: /usr/sbin/a2enmod headers
+    creates: /etc/apache2/mods-enabled/headers.load
+  register: apache2_headers_mod
+
+- name: CONFIGURE APACHE2
+  ansible.builtin.template:
+    src: etc/apache2/sites-available/keystone.conf
+    dest: /etc/apache2/sites-available/keystone.conf
+    mode: "0644"
+    owner: keystone
+    group: keystone
+# End Apache2
+
+# Start Certificates
+- name: Keystone Step Certs SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/keystone-step-certs.service
+    dest: /etc/systemd/system/keystone-step-certs.service
+    mode: "0644"
+
+- name: Create Apache2 systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/apache2.service.d/
+    state: directory
+    mode: "0755"
+
+- name: Apache2 systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/apache2.service.d/override.conf
+    dest: /etc/systemd/system/apache2.service.d/override.conf
+    mode: "0644"
+
+- name: Cron to renew Apache2 certificates
+  ansible.builtin.cron:
+    name: "renew apache2 certificates"
+    special_time: "hourly"
+    # Rekey needs to happen against the CA, RA's don't support rekey
+    # https://smallstep.com/docs/step-ca/registration-authority-ra-mode/#stepcas-limitations
+    job: >-
+      step ca rekey /etc/keystone/keystone-public.crt
+      /etc/keystone/keystone-public.key
+      --ca-url https://step-ca.us-homelab1.hl.rmb938.me
+      --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+      --force --expires-in 720h --exec "systemctl try-reload-or-restart apache2"
+    state: present
+# End Certificates
+
+# Start Keystone
+- name: CONFIGURE KEYSTONE
+  ansible.builtin.template:
+    src: etc/keystone/keystone.conf
+    dest: /etc/keystone/keystone.conf
+    mode: "0600"
+    owner: keystone
+    group: keystone
+# End Keystone
+
+# TODO: figure out how to do db migrations and bootstrap

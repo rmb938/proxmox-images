@@ -1,0 +1,27 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="Generate Step CA certificates for keystone"
+
+Requires=network-online.target
+
+After=network-online.target
+ConditionFileNotEmpty=!/etc/keystone/keystone-public.crt
+
+# Vault Certs should go first before we run
+# This is just to prevent both processes from using port 80
+# We probably should just implement a common script and do
+# some locking
+After=vault-step-certs.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+ExecStart=/usr/bin/step ca certificate ${HOSTNAME} /etc/keystone/keystone-public.crt /etc/keystone/keystone-public.key --ca-url {{ step_ra_acme_url }} --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+ExecStart=/usr/bin/chown postgres:postgres /etc/keystone/keystone-public.crt /etc/keystone/keystone-public.key
+KillMode=process
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,22 @@
+# {{ ansible_managed }}
+# Consul Template Managed - Consul
+
+services {
+  name = "openstack-keystone"
+  id   = "openstack-keystone"
+  port = 5000
+
+  check = {
+    id = "openstack-keystone"
+    name = "Keystone API on port 5000"
+    http = "https://{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:5000/healthcheck"
+
+    interval = "30s"
+    timeout = "5s"
+  }
+
+  meta {
+    haproxy_t2 = "true"
+    haproxy_t2_check_uri = "/healthcheck"
+  }
+}
