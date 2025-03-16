@@ -242,5 +242,9 @@
     group: root
     mode: "0755"
 
-# TODO: bootstrap service
+- name: Place keystone-bootstrap service
+  ansible.builtin.template:
+    src: etc/systemd/system/keystone-bootstrap.service
+    dest: /etc/systemd/system/keystone-bootstrap.service
+    mode: "0644"
 # End Keystone

@@ -9,7 +9,8 @@ import consul
 def main():
     lock_kv_path = "openstack-keystone/bootstrap-lock"
     bootstrap_command = [
-        "/usr/bin/keystone-manage bootstrap",
+        "/usr/bin/keystone-manage",
+        "bootstrap",
         "--bootstrap-password=admin-asdasd",  # TODO: get this from vault
         "--bootstrap-admin-url=https://openstack-keystone.haproxy.us-homelab1.hl.rmb938.me/v3/",
         "--bootstrap-internal-url=https://openstack-keystone.haproxy.us-homelab1.hl.rmb938.me/v3/",
