@@ -9,6 +9,11 @@ vault {
   }
 }
 
+wait {
+  min = "15s"
+  max = "30s"
+}
+
 template {
   source = "/etc/consul-template/templates/consul/connect_ca.crt.ctmpl"
   destination = "/opt/consul/tls/connect_ca.crt"

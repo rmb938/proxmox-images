@@ -21,6 +21,7 @@
     name:
       - python3-pip
       - python3-psycopg
+      - python3-consul
 
 - name: INSTALL KEYSTONE
   ansible.builtin.package:
@@ -36,6 +37,12 @@
   ansible.builtin.pip:
     name: git+https://github.com/rmb938/openstack-keystone-hashicorp-vault-provider.git@1.0.1
     break_system_packages: true
+
+- name: DISABLE APACHE2
+  ansible.builtin.systemd_service:
+    name: apache2
+    state: stopped
+    enabled: false
 # End Install
 
 # Start Consul Tempalte for Consul
@@ -135,19 +142,16 @@
     path: /etc/apache2/ports.conf
     regexp: "^Listen 80$"
     state: absent
-  register: apache2_ports
 
 - name: Enable Apache2 SSL Mod
   ansible.builtin.command:
     cmd: /usr/sbin/a2enmod ssl
     creates: /etc/apache2/mods-enabled/ssl.load
-  register: apache2_ssl_mod
 
 - name: Enable Apache2 Headers Mod
   ansible.builtin.command:
     cmd: /usr/sbin/a2enmod headers
     creates: /etc/apache2/mods-enabled/headers.load
-  register: apache2_headers_mod
 
 - name: CONFIGURE APACHE2
   ansible.builtin.template:
@@ -200,32 +204,40 @@
     mode: "0600"
     owner: keystone
     group: keystone
+
+- name: Place keystone-migrate script
+  ansible.builtin.copy:
+    src: usr/local/bin/keystone-migrate
+    dest: /usr/local/bin/keystone-migrate
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Place keystone-migrate service
+  ansible.builtin.template:
+    src: etc/systemd/system/keystone-migrate.service
+    dest: /etc/systemd/system/keystone-migrate.service
+    mode: "0644"
+
+- name: Place keystone-migrate timer
+  ansible.builtin.template:
+    src: etc/systemd/system/keystone-migrate.timer
+    dest: /etc/systemd/system/keystone-migrate.timer
+    mode: "0644"
+
+- name: SystemD daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable keystone-migrate timer
+  ansible.builtin.systemd:
+    name: keystone-migrate.timer
+    enabled: true
 # End Keystone
 
-# TODO: figure out how to do db migrations and bootstrap
-#   could be 2 services that apache2 Wants and is After
-#   migrations service
-#     python script that does a consul lock
-#     does a keystone-manage db_sync --check
-#       if exit code == 2 it needs to be expanded
-#       exit code == 1 - error
-#       any other exit code do nothing
-#     if needs to be expanded run a db_sync --expand
-#     release lock
 #   bootstrap service
 #     python script that does a consul lock
 #     does a keystone-manage bootstrap
 #     pull admin password from vault
 #     urls and regions are hard coded for now
-#     release lock
-#   migration service contract timer
-#     probably like once a day or something
-#     python script that does a consul lock
-#     does a keystone-manage db_sync --check
-#       if exit code == 4 it needs to be expanded
-#       exit code == 1 - error
-#       any other exit code do nothing
-#     if needs to be expanded check all services in the openstack-keystone service
-#       make sure all their meta keystone_version keys are the same
-#       once they are all the same run a db_sync --contract
 #     release lock

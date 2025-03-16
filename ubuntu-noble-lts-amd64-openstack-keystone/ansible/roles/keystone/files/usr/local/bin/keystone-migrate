@@ -1,0 +1,112 @@
+#! /usr/bin/python3
+
+import subprocess
+import sys
+
+import consul
+
+
+def main():
+    lock_kv_path = "openstack-keystone/migration-lock"
+    check_command = ["/usr/bin/keystone-manage", "db_sync", "--check"]
+    expand_command = ["/usr/bin/keystone-manage", "db_sync", "--expand"]
+    contract_command = ["/usr/bin/keystone-manage", "db_sync", "--contract"]
+
+    consul_client = consul.Consul(
+        host="127.0.0.1",
+        port=8500,
+        consistency="consistent",
+    )
+
+    session_id = consul_client.session.create(ttl=60, behavior="delete")
+
+    try:
+        acquired = consul_client.kv.put(lock_kv_path, "locked", acquire=session_id)
+
+        if not acquired:
+            # Not exiting 1 here because it's normal
+            print(f"Could not aquire consul lock at {lock_kv_path}")
+            return
+
+        result = subprocess.run(check_command, capture_output=True, text=True)
+
+        if result.returncode == 0:
+            print("No migration is needed")
+            return
+
+        if result.returncode == 1:
+            print(f"Error checking if a migration is needed: {result}")
+            sys.exit(1)
+            return
+
+        if result.returncode == 2:
+            print("Needs database expand")
+
+            result = subprocess.run(expand_command, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                print(f"Error running database expand: {result}")
+                sys.exit(1)
+                return
+
+            print("Database expanded successfully")
+            return
+
+        if result.returncode == 4:
+            print("Needs database contract")
+
+            _, consul_service_resp = consul_client.catalog.service(
+                service="openstack-keystone"
+            )
+
+            keystone_version = None
+
+            for service_info in consul_service_resp:
+                if "ServiceMeta" not in service_info:
+                    print(f"No ServiceMeta for service on node {service_info['Node']}")
+                    return
+
+                if "keystone_version" not in service_info["ServiceMeta"]:
+                    print(
+                        f"No keystone_version for service on node {service_info['Node']}"
+                    )
+                    return
+
+                service_keystone_version = service_info["ServiceMeta"][
+                    "keystone_version"
+                ]
+
+                if keystone_version is None:
+                    keystone_version = service_keystone_version
+
+                if keystone_version != service_keystone_version:
+                    print(
+                        f"keystone_version for service on node {service_info['Node']} is different, not contracting"
+                    )
+                    return
+
+            if keystone_version is None:
+                print("Could not find any keystone_version's")
+                sys.exit(1)
+                return
+
+            result = subprocess.run(contract_command, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                print(f"Error running database contract: {result}")
+                sys.exit(1)
+                return
+
+            print("Database contracted successfully")
+            return
+
+        print(f"Unknown Error code from check: {result}")
+        sys.exit(1)
+
+    finally:
+        destroyed = consul_client.session.destroy(session_id)
+        print(f"Session {session_id} destroyed: {destroyed}")
+
+
+if __name__ == "__main__":
+    main()
