@@ -233,11 +233,14 @@
   ansible.builtin.systemd:
     name: keystone-migrate.timer
     enabled: true
-# End Keystone
 
-#   bootstrap service
-#     python script that does a consul lock
-#     does a keystone-manage bootstrap
-#     pull admin password from vault
-#     urls and regions are hard coded for now
-#     release lock
+- name: Place keystone-bootstrap script
+  ansible.builtin.copy:
+    src: usr/local/bin/keystone-bootstrap
+    dest: /usr/local/bin/keystone-bootstrap
+    owner: root
+    group: root
+    mode: "0755"
+
+# TODO: bootstrap service
+# End Keystone

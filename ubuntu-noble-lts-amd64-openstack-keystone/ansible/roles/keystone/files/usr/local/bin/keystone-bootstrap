@@ -1,0 +1,51 @@
+#! /usr/bin/python3
+
+import subprocess
+import sys
+
+import consul
+
+
+def main():
+    lock_kv_path = "openstack-keystone/bootstrap-lock"
+    bootstrap_command = [
+        "/usr/bin/keystone-manage bootstrap",
+        "--bootstrap-password=admin-asdasd",  # TODO: get this from vault
+        "--bootstrap-admin-url=https://openstack-keystone.haproxy.us-homelab1.hl.rmb938.me/v3/",
+        "--bootstrap-internal-url=https://openstack-keystone.haproxy.us-homelab1.hl.rmb938.me/v3/",
+        "--bootstrap-public-url=https://openstack-keystone.haproxy.us-homelab1.hl.rmb938.me/v3/",
+        "--bootstrap-region-id=us-homelab1",
+    ]
+
+    consul_client = consul.Consul(
+        host="127.0.0.1",
+        port=8500,
+        consistency="consistent",
+    )
+
+    session_id = consul_client.session.create(ttl=60, behavior="delete")
+
+    try:
+        acquired = consul_client.kv.put(lock_kv_path, "locked", acquire=session_id)
+
+        if not acquired:
+            # Not exiting 1 here because it's normal
+            print(f"Could not aquire consul lock at {lock_kv_path}")
+            return
+
+        result = subprocess.run(bootstrap_command, capture_output=True, text=True)
+
+        if result.returncode == 0:
+            print("Bootstrap Successful")
+            return
+
+        print(f"Unknown Error code from bootstrap: {result}")
+        sys.exit(1)
+
+    finally:
+        destroyed = consul_client.session.destroy(session_id)
+        print(f"Session {session_id} destroyed: {destroyed}")
+
+
+if __name__ == "__main__":
+    main()

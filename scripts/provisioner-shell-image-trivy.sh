@@ -2,6 +2,9 @@
 
 set -exuo pipefail
 
+# Remove fwup keys, we don't need these anyway.
+rm -rf /var/lib/fwupd/pki/*
+
 # Trivy for scanning for Vulns, installing manually in /tmp so it isn't left around.
 # TODO: Not doing '--exit-code 1' on the trivy binary because it detects old kernel versions and fails https://github.com/aquasecurity/trivy/issues/3764.
 #    There is no easy way to remove the old kernels, apt autoremove doesn't work since it seems to be hard coded to keep X amount.
