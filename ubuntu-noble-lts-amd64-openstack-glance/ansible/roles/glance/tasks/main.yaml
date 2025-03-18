@@ -1,0 +1,40 @@
+---
+# Start Install
+- name: UBUNTU CLOUD KEYRING
+  ansible.builtin.package:
+    name: ubuntu-cloud-keyring
+    state: present
+
+- name: INSTALL OPENSTACK REPO
+  ansible.builtin.apt_repository:
+    repo: deb http://ubuntu-cloud.archive.canonical.com/ubuntu noble-updates/dalmatian main
+
+- name: INSTALL OPENSTACK CLIENT Ubuntu
+  ansible.builtin.package:
+    name:
+      - python3-openstackclient
+      - python3-osc-placement
+      - python3-octaviaclient
+
+- name: INSTALL SUPPORTING LIBS
+  ansible.builtin.package:
+    name:
+      - python3-psycopg
+      - python3-consul
+
+- name: INSTALL GLANCE
+  ansible.builtin.package:
+    name:
+      - glance
+    state: present
+
+- name: GET PACKAGE FACTS
+  ansible.builtin.package_facts:
+    manager: "auto"
+
+- name: DISABLE glance-api
+  ansible.builtin.systemd_service:
+    name: glance-api
+    state: stopped
+    enabled: false
+# End Install
