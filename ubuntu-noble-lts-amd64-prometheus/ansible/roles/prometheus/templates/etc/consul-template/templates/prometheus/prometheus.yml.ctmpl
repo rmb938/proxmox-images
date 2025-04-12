@@ -1,5 +1,10 @@
 ## {{ ansible_managed }}
 # Consul Template Managed - Consul
+# Used to re-render every boot so the service starts
+{% raw %}
+# Boot ID - {{ file "/proc/sys/kernel/random/boot_id" }}
+{% endraw %}
+{% raw %}
 
 scrape_configs:
   - job_name: prometheus
