@@ -18,6 +18,11 @@ services {
   meta {
     haproxy_t2 = "true"
     haproxy_t2_check_uri = "/healthcheck"
+
     cinder_version = "{{ ansible_facts.packages['cinder-api'][0].version }}"
+
+    openstack_keystone_service = "true"
+    openstack_keystone_service_name = "cinderv3"
+    openstack_keystone_service_type = "volumev3"
   }
 }
