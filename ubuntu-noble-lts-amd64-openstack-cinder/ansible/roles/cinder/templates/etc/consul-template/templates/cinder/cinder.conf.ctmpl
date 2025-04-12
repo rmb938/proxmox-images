@@ -1,4 +1,5 @@
 # {{ ansible_managed }}
+# Consul Template Managed - Cinder
 
 [DEFAULT]
 
@@ -449,7 +450,9 @@ glance_api_servers = https://openstack-glance.haproxy.us-homelab1.hl.rmb938.me
 # This option has a sample default set, which means that
 # its actual default value may vary from the one documented
 # below.
-my_ip = <HOST_IP_ADDRESS>
+{% raw %}
+my_ip = {{ sockaddr "GetPrivateIP" }}
+{% endraw %}
 
 # Full class name for the Manager for volume (string value)
 #volume_manager = cinder.volume.manager.VolumeManager
@@ -1772,7 +1775,7 @@ image_conversion_disable = true
 # oslo_messaging.TransportURL at
 # https://docs.openstack.org/oslo.messaging/latest/reference/transport.html
 # (string value)
-transport_url = rabbit://openstack-rabbitmq.service.consul
+transport_url = rabbit://openstack-rabbitmq.service.consul:5671
 
 # The default exchange under which topics are scoped. May be overridden by an
 # exchange name specified in the transport_url option. (string value)
@@ -5719,11 +5722,11 @@ ssl_version = TLSv1_2
 
 # SSL key file (valid only if SSL enabled). (string value)
 # Deprecated group/name - [oslo_messaging_rabbit]/kombu_ssl_keyfile
-ssl_key_file = /etc/cinder/rabbitmq-user-cinder.crt
+ssl_key_file = /etc/cinder/rabbitmq-user-cinder.key
 
 # SSL cert file (valid only if SSL enabled). (string value)
 # Deprecated group/name - [oslo_messaging_rabbit]/kombu_ssl_certfile
-ssl_cert_file = /etc/cinder/rabbitmq-user-cinder.key
+ssl_cert_file = /etc/cinder/rabbitmq-user-cinder.crt
 
 # SSL certification authority file (valid only if SSL enabled). (string value)
 # Deprecated group/name - [oslo_messaging_rabbit]/kombu_ssl_ca_certs

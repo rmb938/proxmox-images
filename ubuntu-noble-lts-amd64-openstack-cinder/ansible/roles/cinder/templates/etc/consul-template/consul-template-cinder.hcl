@@ -29,7 +29,7 @@ template {
   create_dest_dirs = false
   perms = "0644"
   exec {
-    command = "sudo systemctl reload-or-restart apache2 || true"
+    command = "sudo systemctl reload-or-restart cinder-scheduler apache2 || true"
   }
 }
 
@@ -40,6 +40,39 @@ template {
   create_dest_dirs = false
   perms = "0600"
   exec {
-    command = "sudo systemctl reload-or-restart apache2 || true"
+    command = "sudo systemctl reload-or-restart cinder-scheduler apache2 || true"
+  }
+}
+
+# RabbitMQ CA
+template {
+  source = "/etc/consul-template/templates/cinder/rabbitmq-server-ca.crt.ctmpl"
+  destination = "/etc/cinder/rabbitmq-server-ca.crt"
+  create_dest_dirs = false
+  perms = "0644"
+  exec {
+    command = "sudo systemctl reload-or-restart cinder-scheduler || true"
+  }
+}
+
+# RabbitMQ User
+template {
+  source = "/etc/consul-template/templates/cinder/rabbitmq-user-cinder.ctmpl"
+  destination = "/etc/cinder/rabbitmq-user-cinder.rendered"
+  create_dest_dirs = false
+  perms = "0600"
+  exec {
+    command = "sudo systemctl reload-or-restart cinder-scheduler || true"
+  }
+}
+
+# Cinder Config
+template {
+  source = "/etc/consul-template/templates/cinder/cinder.conf.ctmpl"
+  destination = "/etc/cinder/cinder.conf"
+  create_dest_dirs = false
+  perms = "0600"
+  exec {
+    command = "sudo systemctl reload-or-restart cinder-scheduler apache2 || true"
   }
 }

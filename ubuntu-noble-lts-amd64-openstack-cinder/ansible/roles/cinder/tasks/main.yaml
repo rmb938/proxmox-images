@@ -53,6 +53,14 @@
     enabled: false
 # End Install
 
+- name: Own cinder dir
+  ansible.builtin.file:
+    path: /etc/cinder
+    owner: cinder
+    group: cinder
+    mode: "0750"
+    state: directory
+
 # Start Consul Tempalte for Consul
 - name: Configure Consul Template for Consul
   ansible.builtin.template:
@@ -97,7 +105,8 @@
     nopassword: true
     validation: required
     commands:
-      - /usr/bin/systemctl reload-or-restart apache2
+      - /usr/bin/systemctl reload-or-restart cinder-scheduler apache2
+      - /usr/bin/systemctl reload-or-restart cinder-scheduler
     state: present
 
 - name: Configure Consul Template for Cinder
@@ -204,14 +213,6 @@
 # End Certificates
 
 # Start CINDER
-- name: CONFIGURE CINDER
-  ansible.builtin.template:
-    src: etc/cinder/cinder.conf
-    dest: /etc/cinder/cinder.conf
-    mode: "0600"
-    owner: cinder
-    group: cinder
-
 - name: CONFIGURE CINDER NFS SHARES
   ansible.builtin.template:
     src: etc/cinder/nfs_shares
