@@ -22,7 +22,7 @@
       - python3-psycopg
       - python3-consul
 
-- name: INSTALL GLANCE
+- name: INSTALL CINDER
   ansible.builtin.package:
     name:
       - cinder-api
@@ -52,3 +52,171 @@
     state: stopped
     enabled: false
 # End Install
+
+# Start Consul Tempalte for Consul
+- name: Configure Consul Template for Consul
+  ansible.builtin.template:
+    src: etc/consul-template/consul/50_cinder.service.hcl
+    dest: /etc/consul-template/consul/50_cinder.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Place Consul Template for Consul Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/consul/{{ item | basename }}"
+    mode: "0644"
+    owner: consul
+    group: consul
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/consul/*.ctmpl
+# End Consul Tempalte for Consul
+
+# - name: Place fluentbit input for keystone
+#   ansible.builtin.template:
+#     src: etc/fluent-bit-inputs.d/50_keystone.conf
+#     dest: /etc/fluent-bit-inputs.d/50_keystone.conf
+#     owner: root
+#     group: root
+#     mode: "0644"
+
+# - name: Place fluentbit filter for keystone
+#   ansible.builtin.template:
+#     src: etc/fluent-bit-filters.d/50_keystone.conf
+#     dest: /etc/fluent-bit-filters.d/50_keystone.conf
+#     owner: root
+#     group: root
+#     mode: "0644"
+
+# Start Consul Template Cinder
+- name: Add cinder to sudoers
+  community.general.sudoers:
+    name: cinder
+    user: cinder
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart apache2
+    state: present
+
+- name: Configure Consul Template for Cinder
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-cinder.hcl
+    dest: /etc/consul-template/consul-template-cinder.hcl
+    mode: "0644"
+    owner: cinder
+    group: cinder
+
+- name: Create Consul Template for Cinder Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/cinder/
+    state: directory
+    mode: "0744"
+    owner: cinder
+    group: cinder
+
+- name: Place Consul Template for Cinder Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/cinder/{{ item | basename }}"
+    mode: "0644"
+    owner: cinder
+    group: cinder
+  with_fileglob:
+    - ../files/etc/consul-template/templates/cinder/*.ctmpl
+
+- name: Place Consul Template for Cinder Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/cinder/{{ item | basename }}"
+    mode: "0644"
+    owner: cinder
+    group: cinder
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/cinder/*.ctmpl
+
+- name: Consul Template for Cinder SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-cinder.service
+    dest: /etc/systemd/system/consul-template-cinder.service
+    mode: "0644"
+# End Consul Template Cinder
+
+# Start Apache2
+- name: Remove Listen 80
+  ansible.builtin.lineinfile:
+    path: /etc/apache2/ports.conf
+    regexp: "^Listen 80$"
+    state: absent
+
+- name: Enable Apache2 SSL Mod
+  ansible.builtin.command:
+    cmd: /usr/sbin/a2enmod ssl
+    creates: /etc/apache2/mods-enabled/ssl.load
+
+- name: Enable Apache2 Headers Mod
+  ansible.builtin.command:
+    cmd: /usr/sbin/a2enmod headers
+    creates: /etc/apache2/mods-enabled/headers.load
+
+- name: CONFIGURE APACHE2
+  ansible.builtin.template:
+    src: etc/apache2/conf-available/cinder-wsgi.conf
+    dest: /etc/apache2/conf-available/cinder-wsgi.conf
+    mode: "0644"
+    owner: cinder
+    group: cinder
+# End Apache2
+
+# Start Certificates
+- name: Cinder Step Certs SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/cinder-step-certs.service
+    dest: /etc/systemd/system/cinder-step-certs.service
+    mode: "0644"
+
+- name: Create Apache2 systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/apache2.service.d/
+    state: directory
+    mode: "0755"
+
+- name: Apache2 systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/apache2.service.d/override.conf
+    dest: /etc/systemd/system/apache2.service.d/override.conf
+    mode: "0644"
+
+- name: Cron to renew Apache2 certificates
+  ansible.builtin.cron:
+    name: "renew apache2 certificates"
+    special_time: "hourly"
+    # Rekey needs to happen against the CA, RA's don't support rekey
+    # https://smallstep.com/docs/step-ca/registration-authority-ra-mode/#stepcas-limitations
+    job: >-
+      step ca rekey /etc/cinder/cinder-public.crt
+      /etc/cinder/cinder-public.key
+      --ca-url https://step-ca.us-homelab1.hl.rmb938.me
+      --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+      --force --expires-in 720h --exec "systemctl try-reload-or-restart apache2"
+    state: present
+# End Certificates
+
+# Start CINDER
+- name: CONFIGURE CINDER
+  ansible.builtin.template:
+    src: etc/cinder/cinder.conf
+    dest: /etc/cinder/cinder.conf
+    mode: "0600"
+    owner: cinder
+    group: cinder
+
+- name: CONFIGURE CINDER NFS SHARES
+  ansible.builtin.template:
+    src: etc/cinder/nfs_shares
+    dest: /etc/cinder/nfs_shares
+    mode: "0600"
+    owner: cinder
+    group: cinder
+# End CINDER

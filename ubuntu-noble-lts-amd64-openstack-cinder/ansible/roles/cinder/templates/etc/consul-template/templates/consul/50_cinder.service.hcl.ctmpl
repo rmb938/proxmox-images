@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+# Consul Template Managed - Consul
+
+services {
+  name = "openstack-cinder"
+  id   = "openstack-cinder"
+  port = 8776
+
+  check = {
+    id = "openstack-cinder"
+    name = "Cinder API on port 8776"
+    http = "https://{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:8776/healthcheck"
+
+    interval = "30s"
+    timeout = "5s"
+  }
+
+  meta {
+    haproxy_t2 = "true"
+    haproxy_t2_check_uri = "/healthcheck"
+    cinder_version = "{{ ansible_facts.packages['cinder-api'][0].version }}"
+  }
+}
