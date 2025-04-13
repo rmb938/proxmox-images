@@ -10,8 +10,8 @@ After=network-online.target
 Type=oneshot
 RemainAfterExit=no
 
-User=keystone
-Group=keystone
+User=rabbitmq
+Group=rabbitmq
 
 ProtectSystem=full
 ProtectHome=read-only
