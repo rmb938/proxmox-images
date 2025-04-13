@@ -15,6 +15,7 @@
   ansible.builtin.package:
     name:
       - python3-consul
+      - python3-hvac
 
 - name: RabbitMQ Prometheus Service Consul Config
   ansible.builtin.template:

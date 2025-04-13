@@ -6,6 +6,7 @@ import subprocess
 import sys
 
 import consul
+import hvac
 
 
 def list_users() -> list[str]:
@@ -58,7 +59,8 @@ def set_permissions(username: str):
 def main():
     consul_role = os.environ.get("CONSUL_ROLE")
     lock_kv_path = f"{consul_role}/rabbitmq-user-permissions-lock"
-    users_kv_path = f"{consul_role}/users"
+
+    vault_client = hvac.Client(url="http://127.0.0.1:8100")
 
     consul_client = consul.Consul(
         host="127.0.0.1",
@@ -79,12 +81,15 @@ def main():
         try:
             existing_users = list_users()
 
-            _, raw_usernames = consul_client.kv.get(
-                users_kv_path, recurse=True, keys=True
+            roles_data = vault_client.secrets.pki.list_roles(
+                mount_point="pki_openstack_rabbitmq_intermediate"
             )
 
-            for raw_username in raw_usernames:
-                username = os.path.basename(raw_username)
+            for raw_username in roles_data["data"]["keys"]:
+                if not raw_username.startswith("user-"):
+                    continue
+
+                username = raw_username.removeprefix("user-")
 
                 if username not in existing_users:
                     print(f"User '{username}' does not exist, creating...")
