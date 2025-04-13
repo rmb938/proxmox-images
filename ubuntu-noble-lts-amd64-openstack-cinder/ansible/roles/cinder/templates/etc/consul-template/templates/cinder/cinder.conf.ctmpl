@@ -5850,7 +5850,7 @@ rabbit_transient_quorum_queue = true
 
 # Specifies the number of messages to prefetch. Setting to zero allows
 # unlimited messages. (integer value)
-#rabbit_qos_prefetch_count = 0
+rabbit_qos_prefetch_count = 1
 
 # Number of seconds after which the Rabbit broker is considered down if
 # heartbeat's keep-alive fails (0 disables heartbeat). (integer value)
