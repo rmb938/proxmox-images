@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="rabbitmq-user-permissions"
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=rabbitmq-user-permissions.service
+
+[Install]
+WantedBy=multi-user.target

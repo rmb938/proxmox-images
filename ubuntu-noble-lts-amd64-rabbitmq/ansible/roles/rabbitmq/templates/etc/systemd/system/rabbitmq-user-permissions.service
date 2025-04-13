@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="rabbitmq-user-permissions"
+Requires=network-online.target
+
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+
+User=keystone
+Group=keystone
+
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+
+ExecStart=/usr/local/bin/rabbitmq-user-permissions
+
+[Install]
+WantedBy=multi-user.target

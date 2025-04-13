@@ -1,0 +1,106 @@
+#! /usr/bin/python3
+
+
+import os
+import subprocess
+import sys
+
+import consul
+
+
+def list_users() -> list[str]:
+    users = []
+
+    command = ["/usr/sbin/rabbitmqctl", "list_users", "--quiet"]
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print(f"Unknown Error code from list users: {result}")
+        sys.exit(1)
+        return None
+
+    for line in result.stdout.splitlines():
+        data = line.split()
+        users.append(data[0].strip())
+
+    return users
+
+
+def create_user(username: str):
+    command = ["/usr/sbin/rabbitmqctl", "add_user", username, ""]
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print(f"Unknown Error code from add user: {result}")
+        sys.exit(1)
+        return None
+
+
+def set_permissions(username: str):
+    command = [
+        "/usr/sbin/rabbitmqctl",
+        "set_permissions",
+        "--vhost",
+        "/",
+        username,
+        ".*",
+        ".*",
+        ".*",
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print(f"Unknown Error code from add user: {result}")
+        sys.exit(1)
+        return None
+
+
+def main():
+    consul_role = os.environ.get("CONSUL_ROLE")
+    lock_kv_path = f"{consul_role}/rabbitmq-user-permissions-lock"
+    users_kv_path = f"{consul_role}/users"
+
+    consul_client = consul.Consul(
+        host="127.0.0.1",
+        port=8500,
+        consistency="consistent",
+    )
+
+    session_id = consul_client.session.create(ttl=120, behavior="delete")
+
+    try:
+        acquired = consul_client.kv.put(lock_kv_path, "locked", acquire=session_id)
+
+        if not acquired:
+            # Not exiting 1 here because it's normal
+            print(f"Could not aquire consul lock at {lock_kv_path}")
+            return
+
+        try:
+            existing_users = list_users()
+
+            _, raw_usernames = consul_client.kv.get(
+                users_kv_path, recurse=True, keys=True
+            )
+
+            for raw_username in raw_usernames:
+                username = os.path.basename(raw_username)
+
+                if username not in existing_users:
+                    print(f"User '{username}' does not exist, creating...")
+                    create_user(username)
+
+                print(f"Setting permissions for user '{username}'")
+                set_permissions(username)
+        finally:
+            released = consul_client.kv.put(
+                lock_kv_path, "released", release=session_id
+            )
+            print(f"Lock released: {released}")
+    finally:
+        destroyed = consul_client.session.destroy(session_id)
+        print(f"Session {session_id} destroyed: {destroyed}")
+
+
+if __name__ == "__main__":
+    main()

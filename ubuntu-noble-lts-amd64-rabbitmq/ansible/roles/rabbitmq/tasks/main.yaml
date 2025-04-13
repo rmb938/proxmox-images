@@ -11,6 +11,11 @@
     - ../files/var/lib/cloud/scripts/custom-per-boot/*.sh
 # End Cloud Init Scripts
 
+- name: INSTALL SUPPORTING LIBS
+  ansible.builtin.package:
+    name:
+      - python3-consul
+
 - name: RabbitMQ Prometheus Service Consul Config
   ansible.builtin.template:
     src: etc/consul.d/50_rabbitmq_prometheus.service.hcl
@@ -138,7 +143,6 @@
     mode: "0600"
     owner: rabbitmq
     group: rabbitmq
-  register: rabbitmq_plugins
 
 - name: Find erlang ssl dir
   ansible.builtin.find:
@@ -154,7 +158,6 @@
     mode: "0600"
     owner: rabbitmq
     group: rabbitmq
-  register: rabbitmq_env
 
 - name: RabbitMQ Inter Node TLS Config
   ansible.builtin.template:
@@ -163,7 +166,35 @@
     mode: "0600"
     owner: rabbitmq
     group: rabbitmq
-  register: rabbitmq_inter_node_tls_config
+
+- name: Place rabbitmq-user-permissions script
+  ansible.builtin.copy:
+    src: usr/local/bin/rabbitmq-user-permissions
+    dest: /usr/local/bin/rabbitmq-user-permissions
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Place rabbitmq-user-permissions service
+  ansible.builtin.template:
+    src: etc/systemd/system/rabbitmq-user-permissions.service
+    dest: /etc/systemd/system/rabbitmq-user-permissions.service
+    mode: "0644"
+
+- name: Place rabbitmq-user-permissions timer
+  ansible.builtin.template:
+    src: etc/systemd/system/rabbitmq-user-permissions.timer
+    dest: /etc/systemd/system/rabbitmq-user-permissions.timer
+    mode: "0644"
+
+- name: SystemD daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable rabbitmq-user-permissions timer
+  ansible.builtin.systemd:
+    name: rabbitmq-user-permissions.timer
+    enabled: true
 # End RabbitMQ
 
 # Start Consul Template RabbitMQ

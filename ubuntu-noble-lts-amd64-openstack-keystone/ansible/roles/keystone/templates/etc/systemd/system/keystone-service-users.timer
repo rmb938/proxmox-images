@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="keystone-service-users"
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=keystone-service-users.service
+
+[Install]
+WantedBy=multi-user.target

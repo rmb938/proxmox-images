@@ -5810,12 +5810,12 @@ rabbit_login_method = EXTERNAL
 # aka mirrored queues, in other words the HA queues should be disabled. Quorum
 # queues are also durable by default so the amqp_durable_queues option is
 # ignored when this option is enabled. (boolean value)
-#rabbit_quorum_queue = false
+rabbit_quorum_queue = true
 
 # Use quorum queues for transients queues in RabbitMQ. Enabling this option
 # will then make sure those queues are also using quorum kind of rabbit queues,
 # which are HA by default. (boolean value)
-#rabbit_transient_quorum_queue = false
+rabbit_transient_quorum_queue = true
 
 # Each time a message is redelivered to a consumer, a counter is incremented.
 # Once the redelivery count exceeds the delivery limit the message gets dropped
@@ -5876,7 +5876,7 @@ rabbit_login_method = EXTERNAL
 #enable_cancel_on_failover = false
 
 # Should we use consistant queue names or random ones (boolean value)
-#use_queue_manager = false
+use_queue_manager = true
 
 # Hostname used by queue manager. Defaults to the value returned by
 # socket.gethostname(). (string value)
@@ -5894,7 +5894,7 @@ rabbit_login_method = EXTERNAL
 # models an append-only log with non-destructive consumer semantics. It is
 # available as of RabbitMQ 3.9.0. If set this option will replace all fanout
 # queues with only one stream queue. (boolean value)
-#rabbit_stream_fanout = false
+rabbit_stream_fanout = true
 
 
 [oslo_middleware]

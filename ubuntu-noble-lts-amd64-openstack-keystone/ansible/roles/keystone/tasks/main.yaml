@@ -247,4 +247,33 @@
     src: etc/systemd/system/keystone-bootstrap.service
     dest: /etc/systemd/system/keystone-bootstrap.service
     mode: "0644"
+
+- name: Place keystone-service-users script
+  ansible.builtin.copy:
+    src: usr/local/bin/keystone-service-users
+    dest: /usr/local/bin/keystone-service-users
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Place keystone-service-users service
+  ansible.builtin.template:
+    src: etc/systemd/system/keystone-service-users.service
+    dest: /etc/systemd/system/keystone-service-users.service
+    mode: "0644"
+
+- name: Place keystone-service-users timer
+  ansible.builtin.template:
+    src: etc/systemd/system/keystone-service-users.timer
+    dest: /etc/systemd/system/keystone-service-users.timer
+    mode: "0644"
+
+- name: SystemD daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable keystone-service-users timer
+  ansible.builtin.systemd:
+    name: keystone-service-users.timer
+    enabled: true
 # End Keystone

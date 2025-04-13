@@ -1,0 +1,167 @@
+#! /usr/bin/python3
+
+
+import secrets
+import sys
+
+import consul
+from openstack import connection
+
+
+def main():
+    openstack_region = "us-homelab1"
+    openstack_domain_name = "Default"
+    openstack_service_project_name = "service"
+
+    lock_kv_path = "openstack-keystone/service-users-lock"
+
+    consul_client = consul.Consul(
+        host="127.0.0.1",
+        port=8500,
+        consistency="consistent",
+    )
+
+    session_id = consul_client.session.create(ttl=120, behavior="delete")
+
+    try:
+        acquired = consul_client.kv.put(lock_kv_path, "locked", acquire=session_id)
+
+        if not acquired:
+            # Not exiting 1 here because it's normal
+            print(f"Could not aquire consul lock at {lock_kv_path}")
+            return
+
+        try:
+            conn = connection.Connection(
+                region_name=openstack_region,
+                auth={
+                    "auth_url": "https://openstack-keystone.haproxy.us-homelab1.hl.rmb938.me",  # TODO: just use local hostname
+                    "username": "admin",
+                    "password": "admin-asdasd",  # TODO: get this from vault
+                    "project_name": "admin",
+                    "project_domain_name": openstack_domain_name,
+                    "user_domain_name": openstack_domain_name,
+                },
+                identity_interface="internal",
+            )
+
+            domain = conn.identity.find_domain(openstack_domain_name)
+            if not domain:
+                print(f"Could not find domain '{openstack_domain_name}'")
+                sys.exit(1)
+                return
+
+            project = conn.identity.find_project(openstack_service_project_name)
+
+            if not project:
+                print(
+                    f"Project '{openstack_service_project_name}' does not exist, creating..."
+                )
+                project = conn.identity.create_project(
+                    name=openstack_service_project_name, domain_id=domain.id
+                )
+
+            consul_keystone_services = {}
+
+            _, consul_services = consul_client.catalog.services()
+            for consul_service_name, _ in consul_services.items():
+                _, consul_service_nodes = consul_client.catalog.service(
+                    consul_service_name
+                )
+                for consul_service_node in consul_service_nodes:
+                    service_meta = consul_service_node["ServiceMeta"]
+
+                    is_os_keystone_service_str = service_meta.get(
+                        "openstack_keystone_service", "false"
+                    )
+                    if is_os_keystone_service_str == "true":
+                        consul_keystone_services[consul_service_name] = {
+                            "service_name": service_meta[
+                                "openstack_keystone_service_name"
+                            ],
+                            "service_type": service_meta[
+                                "openstack_keystone_service_type"
+                            ],
+                        }
+
+            for consul_service_name, data in consul_keystone_services.items():
+                openstack_user_name = consul_service_name.removeprefix("openstack-")
+
+                user = conn.identity.find_user(openstack_user_name, domain_id=domain.id)
+                if not user:
+                    print(f"User '{openstack_user_name}' does not exist, creating...")
+                    user = conn.identity.create_user(
+                        name=openstack_user_name,
+                        password=secrets.token_hex(128),
+                        domain_id=domain.id,
+                        enabled=True,
+                    )
+
+                # Always change the password to something random
+                conn.identity.update_user(
+                    user,
+                    password=secrets.token_hex(128),
+                )
+
+                # TODO: idk if we still need admin
+                # openstack documentation isn't clear
+                admin_role = conn.identity.find_role("admin")
+                if not admin_role:
+                    print(f"Could not find admin role")
+                    sys.exit(1)
+                    return
+
+                service_role = conn.identity.find_role("service")
+                if not service_role:
+                    print(f"Could not find service role")
+                    sys.exit(1)
+                    return
+
+                conn.identity.assign_project_role_to_user(project, user, admin_role)
+                conn.identity.assign_project_role_to_user(project, user, service_role)
+
+                service_name = data["service_name"]
+                service_type = data["service_type"]
+
+                service = conn.identity.find_service(service_name)
+                if not service:
+                    print(f"Service '{service_name}' does not exist, creating...")
+                    service = conn.identity.create_service(
+                        name=service_name, type=service_type
+                    )
+
+                interaces = ["public", "internal", "admin"]
+                for interface in interaces:
+                    endpoint = None
+                    for ep in conn.identity.endpoints():
+                        if (
+                            ep.service_id == service.id
+                            and ep.interface == interface
+                            and ep.region_id == openstack_region
+                        ):
+                            endpoint = ep
+                            break
+
+                    if not endpoint:
+                        print(
+                            f"Endpoint for service '{service_name}' and interface '{interface}' does not exist, creating..."
+                        )
+                        conn.identity.create_endpoint(
+                            service_id=service.id,
+                            interface=interface,
+                            url=f"https://{consul_service_name}.haproxy.us-homelab1.hl.rmb938.me/v3/%(project_id)s",
+                            region_id=openstack_region,
+                        )
+
+        finally:
+            released = consul_client.kv.put(
+                lock_kv_path, "released", release=session_id
+            )
+            print(f"Lock released: {released}")
+    finally:
+        destroyed = consul_client.session.destroy(session_id)
+        print(f"Session {session_id} destroyed: {destroyed}")
+
+
+if __name__ == "__main__":
+    main()
