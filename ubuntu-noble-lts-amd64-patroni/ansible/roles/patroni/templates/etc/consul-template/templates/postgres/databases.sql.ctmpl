@@ -1,5 +1,7 @@
 --- {{ ansible_managed }}
 --- Consul Template Managed - postgres
+--- TODO: move this to a python script and use vault pki roles instead
+---   look at rabbitmq for reference
 
 CREATE EXTENSION IF NOT EXISTS dblink;
 

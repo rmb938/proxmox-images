@@ -82,6 +82,9 @@ def main():
                             "service_type": service_meta[
                                 "openstack_keystone_service_type"
                             ],
+                            "service_uri": service_meta.get(
+                                "openstack_keystone_service_uri", ""
+                            ),
                         }
 
             for consul_service_name, data in consul_keystone_services.items():
@@ -149,7 +152,7 @@ def main():
                         conn.identity.create_endpoint(
                             service_id=service.id,
                             interface=interface,
-                            url=f"https://{consul_service_name}.haproxy.us-homelab1.hl.rmb938.me/v3/%(project_id)s",
+                            url=f"https://{consul_service_name}.haproxy.us-homelab1.hl.rmb938.me/{data['service_uri']}",
                             region_id=openstack_region,
                         )
 

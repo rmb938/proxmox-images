@@ -82,7 +82,7 @@ def main():
             existing_users = list_users()
 
             roles_data = vault_client.secrets.pki.list_roles(
-                mount_point="pki_openstack_rabbitmq_intermediate"
+                mount_point=f"pki_{consul_role.replace("-", "_")}_intermediate"
             )
 
             for raw_username in roles_data["data"]["keys"]:

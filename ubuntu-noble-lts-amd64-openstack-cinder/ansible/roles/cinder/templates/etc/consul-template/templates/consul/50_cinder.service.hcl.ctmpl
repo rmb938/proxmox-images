@@ -24,5 +24,6 @@ services {
     openstack_keystone_service = "true"
     openstack_keystone_service_name = "cinderv3"
     openstack_keystone_service_type = "volumev3"
+    openstack_keystone_service_uri = "v3/%(project_id)s"
   }
 }
