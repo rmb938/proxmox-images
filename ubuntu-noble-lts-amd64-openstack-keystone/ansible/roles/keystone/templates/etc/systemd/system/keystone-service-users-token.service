@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="keystone-service-users-token"
+Requires=network-online.target
+
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+
+User=keystone
+Group=keystone
+
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+
+ExecStart=/usr/local/bin/keystone-service-users-token
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,195 @@
+#! /usr/bin/python3
+
+
+import secrets
+import sys
+import time
+from datetime import datetime, timedelta
+
+import consul
+import hvac
+from openstack import connection
+
+
+def main():
+    openstack_region = "us-homelab1"
+    openstack_domain_name = "Default"
+    openstack_service_project_name = "service"
+
+    lock_kv_path = "openstack-keystone/service-users-token-lock"
+
+    vault_client = hvac.Client(url="http://127.0.0.1:8100")
+
+    consul_client = consul.Consul(
+        host="127.0.0.1",
+        port=8500,
+        consistency="consistent",
+    )
+
+    session_id = consul_client.session.create(ttl=120, behavior="delete")
+
+    try:
+        acquired = consul_client.kv.put(lock_kv_path, "locked", acquire=session_id)
+
+        if not acquired:
+            # Not exiting 1 here because it's normal
+            print(f"Could not aquire consul lock at {lock_kv_path}")
+            return
+
+        try:
+            conn = connection.Connection(
+                region_name=openstack_region,
+                auth={
+                    "auth_url": "https://openstack-keystone.haproxy.us-homelab1.hl.rmb938.me",  # TODO: just use local hostname
+                    "username": "admin",
+                    "password": "admin-asdasd",  # TODO: get this from vault
+                    "project_name": "admin",
+                    "project_domain_name": openstack_domain_name,
+                    "user_domain_name": openstack_domain_name,
+                },
+                identity_interface="internal",
+            )
+
+            domain = conn.identity.find_domain(openstack_domain_name)
+            if not domain:
+                print(f"Could not find domain '{openstack_domain_name}'")
+                sys.exit(1)
+                return
+
+            project = conn.identity.find_project(openstack_service_project_name)
+            if not project:
+                print(
+                    f"Project '{openstack_service_project_name}' does not exist, creating..."
+                )
+                project = conn.identity.create_project(
+                    name=openstack_service_project_name, domain_id=domain.id
+                )
+
+            response_expected_users = vault_client.secrets.kv.v1.list_secrets(
+                path="openstack-keystone/expected-service-users/"
+            )
+
+            raw_expected_users = response_expected_users["data"]["keys"]
+            for raw_expected_user in raw_expected_users:
+                openstack_user_name = raw_expected_user
+
+                user = conn.identity.find_user(openstack_user_name, domain_id=domain.id)
+                if not user:
+                    print(f"User '{openstack_user_name}' does not exist, creating...")
+                    user = conn.identity.create_user(
+                        name=openstack_user_name,
+                        password=secrets.token_hex(128),
+                        domain_id=domain.id,
+                        enabled=True,
+                    )
+
+                # TODO: idk if we still need admin
+                # openstack documentation isn't clear
+                admin_role = conn.identity.find_role("admin")
+                if not admin_role:
+                    print(f"Could not find admin role")
+                    sys.exit(1)
+                    return
+
+                service_role = conn.identity.find_role("service")
+                if not service_role:
+                    print(f"Could not find service role")
+                    sys.exit(1)
+                    return
+
+                conn.identity.assign_project_role_to_user(project, user, admin_role)
+                conn.identity.assign_project_role_to_user(project, user, service_role)
+
+                now = datetime.now()
+
+                # Doing 7 days for now, it's long enough to not rotate constantly
+                # But short enough to notice any issues
+                credential_valid_length = timedelta(days=7)
+
+                # The minimum amount of length left before we cut a new cred
+                credential_min_length = credential_valid_length / 3
+
+                existing_application_credentials = (
+                    conn.identity.application_credentials(user=user)
+                )
+
+                print(
+                    f"Finding if we need to rotate application credentials for user '{openstack_user_name}'"
+                )
+                newest_expires_at = now
+                for eac in existing_application_credentials:
+
+                    # If eac has no expires at skip it
+                    if eac.expires_at is None:
+                        continue
+
+                    eac_expires_at = datetime.fromisoformat(eac.expires_at)
+
+                    # If eac expires before the newest skip it
+                    if eac_expires_at < newest_expires_at:
+                        continue
+
+                    # We are the newest so set it
+                    newest_expires_at = eac_expires_at
+
+                # If we are not going to expire soon, don't create a new credential
+                if (newest_expires_at - now) > credential_min_length:
+                    print(
+                        f"User '{openstack_user_name}' does not need a new credential yet."
+                    )
+                    continue
+
+                # Change the password to something random while we are here
+                print(f"Rotating Password for '{openstack_user_name}'")
+                new_password = secrets.token_hex(128)
+                conn.identity.update_user(
+                    user,
+                    password=new_password,
+                )
+
+                # Sleeping due to token revocation race with connect_as
+                time.sleep(1)
+
+                expires_at = now + credential_valid_length
+
+                # Connect as because only the owning user can create app creds
+                # Admin user can't create it for them.
+                connect_as = conn.connect_as(
+                    username=openstack_user_name,
+                    password=new_password,
+                    project_name="service",
+                )
+
+                print(f"Rotating application credentials for '{openstack_user_name}'")
+                application_credential = (
+                    connect_as.identity.create_application_credential(
+                        user=user,
+                        name=f"service_creds_{time.time()}",
+                        expires_at=expires_at.strftime("%Y-%m-%dT%H:%M:%S"),
+                    )
+                )
+
+                print(
+                    f"Writting application credentials to vault for '{openstack_user_name}'"
+                )
+                vault_client.secrets.kv.v1.create_or_update_secret(
+                    path=f"openstack-keystone/service-users/{openstack_user_name}",
+                    secret={
+                        "application_credential_id": application_credential.id,
+                        "application_credential_secret": application_credential.secret,
+                        "expires_at": expires_at.strftime("%Y-%m-%dT%H:%M:%S"),
+                    },
+                )
+
+        finally:
+            released = consul_client.kv.put(
+                lock_kv_path, "released", release=session_id
+            )
+            print(f"Lock released: {released}")
+    finally:
+        destroyed = consul_client.session.destroy(session_id)
+        print(f"Session {session_id} destroyed: {destroyed}")
+
+
+if __name__ == "__main__":
+    main()

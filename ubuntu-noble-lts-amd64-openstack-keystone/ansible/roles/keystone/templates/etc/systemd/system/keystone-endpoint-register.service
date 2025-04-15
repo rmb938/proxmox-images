@@ -1,12 +1,10 @@
 # {{ ansible_managed }}
 
 [Unit]
-Description="keystone-service-users"
+Description="keystone-endpoint-register"
 Requires=network-online.target
 
 After=network-online.target
-
-ConditionFileNotEmpty=/etc/keystone/keystone.conf
 
 [Service]
 Type=oneshot
@@ -19,7 +17,7 @@ ProtectSystem=full
 ProtectHome=read-only
 PrivateTmp=yes
 
-ExecStart=/usr/local/bin/keystone-service-users
+ExecStart=/usr/local/bin/keystone-endpoint-register
 
 [Install]
 WantedBy=multi-user.target

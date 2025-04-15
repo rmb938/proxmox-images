@@ -29,7 +29,7 @@ template {
   create_dest_dirs = false
   perms = "0644"
   exec {
-    command = "sudo systemctl reload-or-restart cinder-scheduler apache2 || true"
+    command = "sudo systemctl reload-or-restart cinder-scheduler cinder-volume apache2 || true"
   }
 }
 
@@ -40,7 +40,7 @@ template {
   create_dest_dirs = false
   perms = "0600"
   exec {
-    command = "sudo systemctl reload-or-restart cinder-scheduler apache2 || true"
+    command = "sudo systemctl reload-or-restart cinder-scheduler cinder-volume apache2 || true"
   }
 }
 
@@ -51,7 +51,7 @@ template {
   create_dest_dirs = false
   perms = "0644"
   exec {
-    command = "sudo systemctl reload-or-restart cinder-scheduler || true"
+    command = "sudo systemctl reload-or-restart cinder-scheduler cinder-volume || true"
   }
 }
 
@@ -62,7 +62,7 @@ template {
   create_dest_dirs = false
   perms = "0600"
   exec {
-    command = "sudo systemctl reload-or-restart cinder-scheduler || true"
+    command = "sudo systemctl reload-or-restart cinder-scheduler cinder-volume || true"
   }
 }
 
@@ -73,6 +73,6 @@ template {
   create_dest_dirs = false
   perms = "0600"
   exec {
-    command = "sudo systemctl reload-or-restart cinder-scheduler apache2 || true"
+    command = "sudo systemctl reload-or-restart cinder-scheduler cinder-volume apache2 || true"
   }
 }

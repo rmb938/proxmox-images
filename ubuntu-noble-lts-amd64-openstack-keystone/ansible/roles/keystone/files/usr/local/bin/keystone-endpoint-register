@@ -1,7 +1,6 @@
 #! /usr/bin/python3
 
 
-import secrets
 import sys
 
 import consul
@@ -11,7 +10,6 @@ from openstack import connection
 def main():
     openstack_region = "us-homelab1"
     openstack_domain_name = "Default"
-    openstack_service_project_name = "service"
 
     lock_kv_path = "openstack-keystone/service-users-lock"
 
@@ -51,16 +49,6 @@ def main():
                 sys.exit(1)
                 return
 
-            project = conn.identity.find_project(openstack_service_project_name)
-
-            if not project:
-                print(
-                    f"Project '{openstack_service_project_name}' does not exist, creating..."
-                )
-                project = conn.identity.create_project(
-                    name=openstack_service_project_name, domain_id=domain.id
-                )
-
             consul_keystone_services = {}
 
             _, consul_services = consul_client.catalog.services()
@@ -88,41 +76,6 @@ def main():
                         }
 
             for consul_service_name, data in consul_keystone_services.items():
-                openstack_user_name = consul_service_name.removeprefix("openstack-")
-
-                user = conn.identity.find_user(openstack_user_name, domain_id=domain.id)
-                if not user:
-                    print(f"User '{openstack_user_name}' does not exist, creating...")
-                    user = conn.identity.create_user(
-                        name=openstack_user_name,
-                        password=secrets.token_hex(128),
-                        domain_id=domain.id,
-                        enabled=True,
-                    )
-
-                # Always change the password to something random
-                conn.identity.update_user(
-                    user,
-                    password=secrets.token_hex(128),
-                )
-
-                # TODO: idk if we still need admin
-                # openstack documentation isn't clear
-                admin_role = conn.identity.find_role("admin")
-                if not admin_role:
-                    print(f"Could not find admin role")
-                    sys.exit(1)
-                    return
-
-                service_role = conn.identity.find_role("service")
-                if not service_role:
-                    print(f"Could not find service role")
-                    sys.exit(1)
-                    return
-
-                conn.identity.assign_project_role_to_user(project, user, admin_role)
-                conn.identity.assign_project_role_to_user(project, user, service_role)
-
                 service_name = data["service_name"]
                 service_type = data["service_type"]
 

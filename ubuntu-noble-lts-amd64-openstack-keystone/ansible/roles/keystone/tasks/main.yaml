@@ -22,6 +22,7 @@
       - python3-pip
       - python3-psycopg
       - python3-consul
+      - python3-hvac
 
 - name: INSTALL KEYSTONE
   ansible.builtin.package:
@@ -248,32 +249,61 @@
     dest: /etc/systemd/system/keystone-bootstrap.service
     mode: "0644"
 
-- name: Place keystone-service-users script
+- name: Place keystone-endpoint-register script
   ansible.builtin.copy:
-    src: usr/local/bin/keystone-service-users
-    dest: /usr/local/bin/keystone-service-users
+    src: usr/local/bin/keystone-endpoint-register
+    dest: /usr/local/bin/keystone-endpoint-register
     owner: root
     group: root
     mode: "0755"
 
-- name: Place keystone-service-users service
+- name: Place keystone-endpoint-register service
   ansible.builtin.template:
-    src: etc/systemd/system/keystone-service-users.service
-    dest: /etc/systemd/system/keystone-service-users.service
+    src: etc/systemd/system/keystone-endpoint-register.service
+    dest: /etc/systemd/system/keystone-endpoint-register.service
     mode: "0644"
 
-- name: Place keystone-service-users timer
+- name: Place keystone-endpoint-register timer
   ansible.builtin.template:
-    src: etc/systemd/system/keystone-service-users.timer
-    dest: /etc/systemd/system/keystone-service-users.timer
+    src: etc/systemd/system/keystone-endpoint-register.timer
+    dest: /etc/systemd/system/keystone-endpoint-register.timer
     mode: "0644"
 
 - name: SystemD daemon reload
   ansible.builtin.systemd:
     daemon_reload: true
 
-- name: Enable keystone-service-users timer
+- name: Enable keystone-endpoint-register timer
   ansible.builtin.systemd:
-    name: keystone-service-users.timer
+    name: keystone-endpoint-register.timer
+    enabled: true
+
+- name: Place keystone-service-users-token script
+  ansible.builtin.copy:
+    src: usr/local/bin/keystone-service-users-token
+    dest: /usr/local/bin/keystone-service-users-token
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Place keystone-service-users-token service
+  ansible.builtin.template:
+    src: etc/systemd/system/keystone-service-users-token.service
+    dest: /etc/systemd/system/keystone-service-users-token.service
+    mode: "0644"
+
+- name: Place keystone-service-users-token timer
+  ansible.builtin.template:
+    src: etc/systemd/system/keystone-service-users-token.timer
+    dest: /etc/systemd/system/keystone-service-users-token.timer
+    mode: "0644"
+
+- name: SystemD daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable keystone-service-users-token timer
+  ansible.builtin.systemd:
+    name: keystone-service-users-token.timer
     enabled: true
 # End Keystone

@@ -1,4 +1,16 @@
 ---
+# Start Cloud Init Scripts
+- name: Cloud Init Scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/var/lib/cloud/scripts/custom-per-boot/{{ item | basename }}"
+    mode: "0755"
+    owner: root
+    group: root
+  with_fileglob:
+    - ../files/var/lib/cloud/scripts/custom-per-boot/*.sh
+# End Cloud Init Scripts
+
 # Start Install
 - name: UBUNTU CLOUD KEYRING
   ansible.builtin.package:
@@ -28,6 +40,7 @@
       - cinder-api
       - cinder-scheduler
       - cinder-volume
+      - nfs-common
     state: present
 
 - name: GET PACKAGE FACTS
@@ -105,8 +118,8 @@
     nopassword: true
     validation: required
     commands:
-      - /usr/bin/systemctl reload-or-restart cinder-scheduler apache2
-      - /usr/bin/systemctl reload-or-restart cinder-scheduler
+      - /usr/bin/systemctl reload-or-restart cinder-scheduler cinder-volume apache2
+      - /usr/bin/systemctl reload-or-restart cinder-scheduler cinder-volume
     state: present
 
 - name: Configure Consul Template for Cinder

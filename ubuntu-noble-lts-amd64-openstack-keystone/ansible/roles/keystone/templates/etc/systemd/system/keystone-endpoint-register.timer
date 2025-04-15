@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="keystone-endpoint-register"
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=keystone-endpoint-register.service
+
+[Install]
+WantedBy=multi-user.target
