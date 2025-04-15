@@ -1,0 +1,28 @@
+# {{ ansible_managed }}
+# Consul Template Managed - Consul
+
+services {
+  name = "openstack-glance"
+  id   = "openstack-glance"
+  port = 9292
+
+  check = {
+    id = "openstack-glance"
+    name = "glance API on port 9292"
+    http = "https://{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:9292/healthcheck"
+
+    interval = "30s"
+    timeout = "5s"
+  }
+
+  meta {
+    haproxy_t2 = "true"
+    haproxy_t2_check_uri = "/healthcheck"
+
+    glance_version = "{{ ansible_facts.packages['glance-api'][0].version }}"
+
+    openstack_keystone_service = "true"
+    openstack_keystone_service_name = "glance"
+    openstack_keystone_service_type = "image"
+  }
+}
