@@ -226,6 +226,59 @@
 # End Certificates
 
 # Start CINDER
+- name: Place cinder-migrate script
+  ansible.builtin.copy:
+    src: usr/local/bin/cinder-migrate
+    dest: /usr/local/bin/cinder-migrate
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Place cinder-migrate service
+  ansible.builtin.template:
+    src: etc/systemd/system/cinder-migrate.service
+    dest: /etc/systemd/system/cinder-migrate.service
+    mode: "0644"
+
+- name: Place cinder-migrate timer
+  ansible.builtin.template:
+    src: etc/systemd/system/cinder-migrate.timer
+    dest: /etc/systemd/system/cinder-migrate.timer
+    mode: "0644"
+
+- name: SystemD daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable cinder-migrate timer
+  ansible.builtin.systemd:
+    name: cinder-migrate.timer
+    enabled: true
+
+- name: Create Cinder Volume systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/cinder-volume.service.d/
+    state: directory
+    mode: "0755"
+
+- name: Cinder Volume systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/cinder-volume.service.d/override.conf
+    dest: /etc/systemd/system/cinder-volume.service.d/override.conf
+    mode: "0644"
+
+- name: Create Cinder Scheduler systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/cinder-scheduler.service.d/
+    state: directory
+    mode: "0755"
+
+- name: Cinder Scheduler systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/cinder-scheduler.service.d/override.conf
+    dest: /etc/systemd/system/cinder-scheduler.service.d/override.conf
+    mode: "0644"
+
 - name: CONFIGURE CINDER NFS SHARES
   ansible.builtin.template:
     src: etc/cinder/nfs_shares
