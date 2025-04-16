@@ -215,3 +215,32 @@
     dest: /etc/systemd/system/consul-template-glance.service
     mode: "0644"
 # End Consul Template Glance
+
+- name: Place glance-migrate script
+  ansible.builtin.copy:
+    src: usr/local/bin/glance-migrate
+    dest: /usr/local/bin/glance-migrate
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Place glance-migrate service
+  ansible.builtin.template:
+    src: etc/systemd/system/glance-migrate.service
+    dest: /etc/systemd/system/glance-migrate.service
+    mode: "0644"
+
+- name: Place glance-migrate timer
+  ansible.builtin.template:
+    src: etc/systemd/system/glance-migrate.timer
+    dest: /etc/systemd/system/glance-migrate.timer
+    mode: "0644"
+
+- name: SystemD daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable glance-migrate timer
+  ansible.builtin.systemd:
+    name: glance-migrate.timer
+    enabled: true

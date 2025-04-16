@@ -1,0 +1,25 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="glance-migrate"
+Requires=network-online.target
+
+After=network-online.target
+
+ConditionFileNotEmpty=/etc/glance/glance-api.conf
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+
+User=glance
+Group=glance
+
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+
+ExecStart=/usr/local/bin/glance-migrate
+
+[Install]
+WantedBy=multi-user.target

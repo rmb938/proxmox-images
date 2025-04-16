@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="glance-migrate"
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=24h
+Unit=glance-migrate.service
+
+[Install]
+WantedBy=multi-user.target
