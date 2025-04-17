@@ -51,8 +51,23 @@
     owner: consul
     group: consul
 
-# TODO: need to put these after ovsdb's start
-# Maybe do a timer, 5 min after boot then runs every 1 hour
-# This will make sure it's always set, I don't think there is any harm?
-# ovn-nbctl --inactivity-probe=60000 set-connection ptcp:6641
-# ovn-sbctl --inactivity-probe=60000 set-connection ptcp:6642
+- name: Place ovn-ovsdb-connection service
+  ansible.builtin.template:
+    src: etc/systemd/system/ovn-ovsdb-connection.service
+    dest: /etc/systemd/system/ovn-ovsdb-connection.service
+    mode: "0644"
+
+- name: Place ovn-ovsdb-connection timer
+  ansible.builtin.template:
+    src: etc/systemd/system/ovn-ovsdb-connection.timer
+    dest: /etc/systemd/system/ovn-ovsdb-connection.timer
+    mode: "0644"
+
+- name: SystemD daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable ovn-ovsdb-connection timer
+  ansible.builtin.systemd:
+    name: ovn-ovsdb-connection.timer
+    enabled: true

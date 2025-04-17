@@ -1,0 +1,21 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="ovn-ovsdb-connection"
+Requires=network-online.target
+
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+
+ExecStart=/usr/bin/ovn-nbctl --inactivity-probe=60000 set-connection ptcp:6641
+ExecStart=/usr/bin/ovn-sbctl --inactivity-probe=60000 set-connection ptcp:6642
+
+[Install]
+WantedBy=multi-user.target

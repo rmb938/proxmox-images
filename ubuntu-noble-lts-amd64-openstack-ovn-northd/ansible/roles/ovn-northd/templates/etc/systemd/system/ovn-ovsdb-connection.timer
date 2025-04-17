@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="ovn-ovsdb-connection"
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+Unit=ovn-ovsdb-connection.service
+
+[Install]
+WantedBy=multi-user.target
