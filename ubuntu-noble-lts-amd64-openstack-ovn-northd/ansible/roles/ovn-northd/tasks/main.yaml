@@ -1,0 +1,58 @@
+---
+# Start Cloud Init Scripts
+- name: Cloud Init Scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/var/lib/cloud/scripts/custom-per-boot/{{ item | basename }}"
+    mode: "0755"
+    owner: root
+    group: root
+  with_fileglob:
+    - ../files/var/lib/cloud/scripts/custom-per-boot/*.sh
+# End Cloud Init Scripts
+
+# Start Install
+- name: INSTALL OVN
+  ansible.builtin.package:
+    name:
+      - ovn-central
+    state: present
+
+- name: DISABLE OVN services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - ovn-central.service
+    - ovn-northd.service
+    - ovn-ovsdb-server-nb.service
+    - ovn-ovsdb-server-sb.service
+
+- name: Remove OVN storage dir
+  ansible.builtin.file:
+    path: /var/lib/ovn
+    state: absent
+
+- name: Create OVN storage dir
+  ansible.builtin.file:
+    path: /var/lib/ovn
+    owner: root
+    group: root
+    mode: '0755'
+    state: directory
+# End Install
+
+- name: OVSDB Service Consul Config
+  ansible.builtin.template:
+    src: etc/consul.d/50_ovn-ovsdb.hcl
+    dest: /etc/consul.d/50_ovn-ovsdb.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+# TODO: need to put these after ovsdb's start
+# Maybe do a timer, 5 min after boot then runs every 1 hour
+# This will make sure it's always set, I don't think there is any harm?
+# ovn-nbctl --inactivity-probe=60000 set-connection ptcp:6641
+# ovn-sbctl --inactivity-probe=60000 set-connection ptcp:6642
