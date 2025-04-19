@@ -43,6 +43,59 @@
     state: directory
 # End Install
 
+# Start OVN
+- name: Create ovn user
+  ansible.builtin.user:
+    name: ovn
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+    home: /var/lib/ovn
+
+- name: Create OVN OVSDB config dir
+  ansible.builtin.file:
+    path: /etc/ovn-ovsdb
+    owner: ovn
+    group: ovn
+    mode: '0755'
+    state: directory
+
+- name: Create ovn-northd systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/ovn-northd.service.d/
+    state: directory
+    mode: "0755"
+
+- name: Place ovn-northd systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/ovn-northd.service.d/override.conf
+    dest: /etc/systemd/system/ovn-northd.service.d/override.conf
+    mode: "0644"
+
+- name: Create ovn-ovsdb-server-nb systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/ovn-ovsdb-server-nb.service.d/
+    state: directory
+    mode: "0755"
+
+- name: Place ovn-ovsdb-server-nb systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/ovn-ovsdb-server-nb.service.d/override.conf
+    dest: /etc/systemd/system/ovn-ovsdb-server-nb.service.d/override.conf
+    mode: "0644"
+
+- name: Create ovn-ovsdb-server-sb systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/ovn-ovsdb-server-sb.service.d/
+    state: directory
+    mode: "0755"
+
+- name: Place ovn-ovsdb-server-sb systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/ovn-ovsdb-server-sb.service.d/override.conf
+    dest: /etc/systemd/system/ovn-ovsdb-server-sb.service.d/override.conf
+    mode: "0644"
+
 - name: OVSDB Service Consul Config
   ansible.builtin.template:
     src: etc/consul.d/50_ovn-ovsdb.hcl
@@ -71,3 +124,58 @@
   ansible.builtin.systemd:
     name: ovn-ovsdb-connection.timer
     enabled: true
+# End OVN
+
+# Start OVN Consul Template
+- name: Add ovn to sudoers
+  community.general.sudoers:
+    name: ovn
+    user: ovn
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart ovn-central
+    state: present
+
+- name: Configure Consul Template for OVN
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-ovn.hcl
+    dest: /etc/consul-template/consul-template-ovn.hcl
+    mode: "0644"
+    owner: ovn
+    group: ovn
+
+- name: Create Consul Template for ovn Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/ovn/
+    state: directory
+    mode: "0744"
+    owner: ovn
+    group: ovn
+
+- name: Place Consul Template for ovn Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/ovn/{{ item | basename }}"
+    mode: "0644"
+    owner: ovn
+    group: ovn
+  with_fileglob:
+    - ../files/etc/consul-template/templates/ovn/*.ctmpl
+
+- name: Place Consul Template for OVN Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/ovn/{{ item | basename }}"
+    mode: "0644"
+    owner: ovn
+    group: ovn
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/ovn/*.ctmpl
+
+- name: Consul Template for OVN SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-ovn.service
+    dest: /etc/systemd/system/consul-template-ovn.service
+    mode: "0644"
+# End OVN Consul Template

@@ -1,0 +1,6 @@
+{{ with secret "pki_openstack_ovn_ovsdb_intermediate/cert/ca" }}
+{{ .Data.certificate }}
+{{ end }}
+{{ with secret "pki_openstack_ovn_ovsdb_root/cert/ca" }}
+{{ .Data.certificate }}
+{{ end }}
