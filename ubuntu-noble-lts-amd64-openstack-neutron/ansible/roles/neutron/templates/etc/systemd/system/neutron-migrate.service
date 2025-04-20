@@ -1,0 +1,26 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="neutron-migrate"
+Requires=network-online.target
+
+After=network-online.target
+
+ConditionFileNotEmpty=/etc/neutron/neutron.conf
+ConditionFileNotEmpty=/etc/neutron/plugins/ml2/ml2_conf.ini
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+
+User=neutron
+Group=neutron
+
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+
+ExecStart=/usr/local/bin/neutron-migrate
+
+[Install]
+WantedBy=multi-user.target

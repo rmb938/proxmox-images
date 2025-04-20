@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="neutron-migrate"
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=24h
+Unit=neutron-migrate.service
+
+[Install]
+WantedBy=multi-user.target

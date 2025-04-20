@@ -1,0 +1,28 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="Generate Step CA certificates for haproxy"
+
+Requires=network-online.target
+
+After=network-online.target
+ConditionFileNotEmpty=!/etc/ssl/private/haproxy.crt
+
+# Vault Certs should go first before we run
+# This is just to prevent both processes from using port 80
+# We probably should just implement a common script and do
+# some locking
+# TODO: we really need locking, this is preventing from haproxy being started on startup
+#   and instead I need to make it a wants on glance-api
+After=vault-step-certs.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+ExecStart=/usr/bin/step ca certificate ${HOSTNAME} /etc/ssl/private/haproxy.crt /etc/ssl/private/haproxy.crt.key --ca-url {{ step_ra_acme_url }} --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+KillMode=process
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

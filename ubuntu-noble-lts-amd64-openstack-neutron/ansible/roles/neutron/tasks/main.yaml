@@ -1,0 +1,243 @@
+---
+# Start Install
+- name: UBUNTU CLOUD KEYRING
+  ansible.builtin.package:
+    name: ubuntu-cloud-keyring
+    state: present
+
+- name: INSTALL OPENSTACK REPO
+  ansible.builtin.apt_repository:
+    repo: deb http://ubuntu-cloud.archive.canonical.com/ubuntu noble-updates/dalmatian main
+
+- name: INSTALL OPENSTACK CLIENT Ubuntu
+  ansible.builtin.package:
+    name:
+      - python3-openstackclient
+      - python3-osc-placement
+      - python3-octaviaclient
+
+- name: INSTALL SUPPORTING LIBS
+  ansible.builtin.package:
+    name:
+      - python3-psycopg
+      - python3-consul
+      - python3-unbound
+
+- name: INSTALL NEUTRON
+  ansible.builtin.package:
+    name:
+      - neutron-server
+      - neutron-plugin-ml2
+    state: present
+
+- name: GET PACKAGE FACTS
+  ansible.builtin.package_facts:
+    manager: "auto"
+
+- name: DISABLE nuetron services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - neutron-server
+# End Install
+
+- name: Own neutron dir
+  ansible.builtin.file:
+    path: /etc/neutron
+    owner: neutron
+    group: neutron
+    mode: "0750"
+    state: directory
+    recurse: true
+
+# Start Consul Tempalte for Consul
+- name: Configure Consul Template for Consul
+  ansible.builtin.template:
+    src: etc/consul-template/consul/50_neutron.service.hcl
+    dest: /etc/consul-template/consul/50_neutron.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Place Consul Template for Consul Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/consul/{{ item | basename }}"
+    mode: "0644"
+    owner: consul
+    group: consul
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/consul/*.ctmpl
+# End Consul Tempalte for Consul
+
+# Start Certificates
+- name: HAProxy Step Certs SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/haproxy-step-certs.service
+    dest: /etc/systemd/system/haproxy-step-certs.service
+    mode: "0644"
+
+- name: Create HAProxy systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/haproxy.service.d/
+    state: directory
+    mode: "0755"
+
+- name: HAProxy systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/haproxy.service.d/override.conf
+    dest: /etc/systemd/system/haproxy.service.d/override.conf
+    mode: "0644"
+
+- name: Cron to renew Neutron certificates
+  ansible.builtin.cron:
+    name: "renew neutron certificates"
+    special_time: "hourly"
+    # Rekey needs to happen against the CA, RA's don't support rekey
+    # https://smallstep.com/docs/step-ca/registration-authority-ra-mode/#stepcas-limitations
+    job: >-
+      step ca rekey /etc/ssl/private/haproxy.crt
+      /etc/ssl/private/haproxy.crt.key
+      --ca-url https://step-ca.us-homelab1.hl.rmb938.me
+      --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+      --force --expires-in 720h --exec "systemctl try-reload-or-restart haproxy"
+    state: present
+# End Certificates
+
+# Start HAProxy
+- name: HAProxy Neutron API Service Consul Config
+  ansible.builtin.template:
+    src: etc/consul.d/50_haproxy-neutron.service.hcl
+    dest: /etc/consul.d/50_haproxy-neutron.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Add HAProxy 3.0 PPA
+  ansible.builtin.apt_repository:
+    repo: ppa:vbernat/haproxy-3.0
+    state: present
+
+- name: Install HAProxy
+  ansible.builtin.package:
+    name: 'haproxy=3.0.*'
+    state: present
+
+- name: Disable HAProxy
+  ansible.builtin.systemd_service:
+    name: haproxy
+    enabled: false
+
+- name: Own HAProxy Dir
+  ansible.builtin.file:
+    path: /etc/haproxy
+    state: directory
+    mode: '0755'
+    owner: haproxy
+    group: haproxy
+
+- name: Configure HAProxy
+  ansible.builtin.template:
+    src: etc/haproxy/haproxy.cfg
+    dest: /etc/haproxy/haproxy.cfg
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+# End HAProxy
+
+- name: Create Neutron Server systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/neutron-server.service.d/
+    state: directory
+    mode: "0755"
+
+- name: Neutron Server API systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/neutron-server.service.d/override.conf
+    dest: /etc/systemd/system/neutron-server.service.d/override.conf
+    mode: "0644"
+
+# Start Consul Template Neutron
+- name: Add neutron to sudoers
+  community.general.sudoers:
+    name: neutron
+    user: neutron
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart neutron-server
+    state: present
+
+- name: Configure Consul Template for Neutron
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-neutron.hcl
+    dest: /etc/consul-template/consul-template-neutron.hcl
+    mode: "0644"
+    owner: neutron
+    group: neutron
+
+- name: Create Consul Template for Neutron Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/neutron/
+    state: directory
+    mode: "0744"
+    owner: neutron
+    group: neutron
+
+- name: Place Consul Template for Neutron Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/neutron/{{ item | basename }}"
+    mode: "0644"
+    owner: neutron
+    group: neutron
+  with_fileglob:
+    - ../files/etc/consul-template/templates/neutron/*.ctmpl
+
+- name: Place Consul Template for Neutron Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/neutron/{{ item | basename }}"
+    mode: "0644"
+    owner: neutron
+    group: neutron
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/neutron/*.ctmpl
+
+- name: Consul Template for Neutron SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-neutron.service
+    dest: /etc/systemd/system/consul-template-neutron.service
+    mode: "0644"
+# End Consul Template Neutron
+
+- name: Place neutron-migrate script
+  ansible.builtin.copy:
+    src: usr/local/bin/neutron-migrate
+    dest: /usr/local/bin/neutron-migrate
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Place neutron-migrate service
+  ansible.builtin.template:
+    src: etc/systemd/system/neutron-migrate.service
+    dest: /etc/systemd/system/neutron-migrate.service
+    mode: "0644"
+
+- name: Place neutron-migrate timer
+  ansible.builtin.template:
+    src: etc/systemd/system/neutron-migrate.timer
+    dest: /etc/systemd/system/neutron-migrate.timer
+    mode: "0644"
+
+- name: SystemD daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable neutron-migrate timer
+  ansible.builtin.systemd:
+    name: neutron-migrate.timer
+    enabled: true

@@ -1,0 +1,28 @@
+# {{ ansible_managed }}
+# Consul Template Managed - Consul
+
+services {
+  name = "openstack-neutron"
+  id   = "openstack-neutron"
+  port = 9696
+
+  check = {
+    id = "openstack-neutron"
+    name = "neutron API on port 9696"
+    http = "https://{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:9696/healthcheck"
+
+    interval = "30s"
+    timeout = "5s"
+  }
+
+  meta {
+    haproxy_t2 = "true"
+    haproxy_t2_check_uri = "/healthcheck"
+
+    neutron_version = "{{ ansible_facts.packages['neutron-server'][0].version }}"
+
+    openstack_keystone_service = "true"
+    openstack_keystone_service_name = "neutron"
+    openstack_keystone_service_type = "network"
+  }
+}
