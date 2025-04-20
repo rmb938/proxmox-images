@@ -133,6 +133,11 @@
     name: 'haproxy=3.0.*'
     state: present
 
+- name: Disable HAProxy
+  ansible.builtin.systemd_service:
+    name: haproxy
+    enabled: false
+
 - name: Own HAProxy Dir
   ansible.builtin.file:
     path: /etc/haproxy
