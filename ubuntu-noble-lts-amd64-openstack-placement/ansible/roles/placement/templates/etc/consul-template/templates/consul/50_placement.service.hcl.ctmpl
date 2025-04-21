@@ -1,0 +1,28 @@
+# {{ ansible_managed }}
+# Consul Template Managed - Consul
+
+services {
+  name = "openstack-placement"
+  id   = "openstack-placement"
+  port = 8778
+
+  check = {
+    id = "openstack-placement"
+    name = "Placement API on port 8778"
+    http = "https://{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:8778/"
+
+    interval = "30s"
+    timeout = "5s"
+  }
+
+  meta {
+    haproxy_t2 = "true"
+    haproxy_t2_check_uri = "/"
+
+    placement_version = "{{ ansible_facts.packages['placement-api'][0].version }}"
+
+    openstack_keystone_service = "true"
+    openstack_keystone_service_name = "placement"
+    openstack_keystone_service_type = "placement"
+  }
+}

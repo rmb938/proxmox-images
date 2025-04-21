@@ -1,0 +1,227 @@
+---
+# Start Install
+- name: UBUNTU CLOUD KEYRING
+  ansible.builtin.package:
+    name: ubuntu-cloud-keyring
+    state: present
+
+- name: INSTALL OPENSTACK REPO
+  ansible.builtin.apt_repository:
+    repo: deb http://ubuntu-cloud.archive.canonical.com/ubuntu noble-updates/dalmatian main
+
+- name: INSTALL OPENSTACK CLIENT Ubuntu
+  ansible.builtin.package:
+    name:
+      - python3-openstackclient
+      - python3-osc-placement
+      - python3-octaviaclient
+
+- name: INSTALL SUPPORTING LIBS
+  ansible.builtin.package:
+    name:
+      - python3-psycopg
+      - python3-consul
+
+- name: INSTALL PLACEMENT
+  ansible.builtin.package:
+    name:
+      - placement-api
+    state: present
+
+- name: GET PACKAGE FACTS
+  ansible.builtin.package_facts:
+    manager: "auto"
+
+- name: DISABLE apache2
+  ansible.builtin.systemd_service:
+    name: apache2
+    state: stopped
+    enabled: false
+# End Install
+
+- name: Own placement dir
+  ansible.builtin.file:
+    path: /etc/placement
+    owner: placement
+    group: placement
+    mode: "0750"
+    state: directory
+
+# Start Consul Tempalte for Consul
+- name: Configure Consul Template for Consul
+  ansible.builtin.template:
+    src: etc/consul-template/consul/50_placement.service.hcl
+    dest: /etc/consul-template/consul/50_placement.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Place Consul Template for Consul Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/consul/{{ item | basename }}"
+    mode: "0644"
+    owner: consul
+    group: consul
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/consul/*.ctmpl
+# End Consul Tempalte for Consul
+
+# - name: Place fluentbit input for keystone
+#   ansible.builtin.template:
+#     src: etc/fluent-bit-inputs.d/50_keystone.conf
+#     dest: /etc/fluent-bit-inputs.d/50_keystone.conf
+#     owner: root
+#     group: root
+#     mode: "0644"
+
+# - name: Place fluentbit filter for keystone
+#   ansible.builtin.template:
+#     src: etc/fluent-bit-filters.d/50_keystone.conf
+#     dest: /etc/fluent-bit-filters.d/50_keystone.conf
+#     owner: root
+#     group: root
+#     mode: "0644"
+
+# Start Consul Template Placement
+- name: Add placement to sudoers
+  community.general.sudoers:
+    name: placement
+    user: placement
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart apache2
+    state: present
+
+- name: Configure Consul Template for Placement
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-placement.hcl
+    dest: /etc/consul-template/consul-template-placement.hcl
+    mode: "0644"
+    owner: placement
+    group: placement
+
+- name: Create Consul Template for Placement Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/placement/
+    state: directory
+    mode: "0744"
+    owner: placement
+    group: placement
+
+- name: Place Consul Template for Placement Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/placement/{{ item | basename }}"
+    mode: "0644"
+    owner: placement
+    group: placement
+  with_fileglob:
+    - ../files/etc/consul-template/templates/placement/*.ctmpl
+
+- name: Place Consul Template for Placement Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/placement/{{ item | basename }}"
+    mode: "0644"
+    owner: placement
+    group: placement
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/placement/*.ctmpl
+
+- name: Consul Template for Placement SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-placement.service
+    dest: /etc/systemd/system/consul-template-placement.service
+    mode: "0644"
+# End Consul Template Placement
+
+# Start Apache2
+- name: Remove Listen 80
+  ansible.builtin.lineinfile:
+    path: /etc/apache2/ports.conf
+    regexp: "^Listen 80$"
+    state: absent
+
+- name: Enable Apache2 SSL Mod
+  ansible.builtin.command:
+    cmd: /usr/sbin/a2enmod ssl
+    creates: /etc/apache2/mods-enabled/ssl.load
+
+- name: Enable Apache2 Headers Mod
+  ansible.builtin.command:
+    cmd: /usr/sbin/a2enmod headers
+    creates: /etc/apache2/mods-enabled/headers.load
+
+- name: CONFIGURE APACHE2
+  ansible.builtin.template:
+    src: etc/apache2/sites-available/placement-api.conf
+    dest: /etc/apache2/sites-available/placement-api.conf
+    mode: "0644"
+    owner: placement
+    group: placement
+# End Apache2
+
+# Start Certificates
+- name: Placement Step Certs SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/placement-step-certs.service
+    dest: /etc/systemd/system/placement-step-certs.service
+    mode: "0644"
+
+- name: Create Apache2 systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/apache2.service.d/
+    state: directory
+    mode: "0755"
+
+- name: Apache2 systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/apache2.service.d/override.conf
+    dest: /etc/systemd/system/apache2.service.d/override.conf
+    mode: "0644"
+
+- name: Cron to renew Apache2 certificates
+  ansible.builtin.cron:
+    name: "renew apache2 certificates"
+    special_time: "hourly"
+    # Rekey needs to happen against the CA, RA's don't support rekey
+    # https://smallstep.com/docs/step-ca/registration-authority-ra-mode/#stepcas-limitations
+    job: >-
+      step ca rekey /etc/placement/placement-public.crt
+      /etc/placement/placement-public.key
+      --ca-url https://step-ca.us-homelab1.hl.rmb938.me
+      --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+      --force --expires-in 720h --exec "systemctl try-reload-or-restart apache2"
+    state: present
+# End Certificates
+
+- name: Place placement-migrate script
+  ansible.builtin.copy:
+    src: usr/local/bin/placement-migrate
+    dest: /usr/local/bin/placement-migrate
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Place placement-migrate service
+  ansible.builtin.template:
+    src: etc/systemd/system/placement-migrate.service
+    dest: /etc/systemd/system/placement-migrate.service
+    mode: "0644"
+
+- name: Place placement-migrate timer
+  ansible.builtin.template:
+    src: etc/systemd/system/placement-migrate.timer
+    dest: /etc/systemd/system/placement-migrate.timer
+    mode: "0644"
+
+- name: SystemD daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable placement-migrate timer
+  ansible.builtin.systemd:
+    name: placement-migrate.timer
+    enabled: true

@@ -1,0 +1,25 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="placement-migrate"
+Requires=network-online.target
+
+After=network-online.target
+
+ConditionFileNotEmpty=/etc/placement/placement.conf
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+
+User=placement
+Group=placement
+
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+
+ExecStart=/usr/local/bin/placement-migrate
+
+[Install]
+WantedBy=multi-user.target

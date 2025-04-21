@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="placement-migrate"
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=24h
+Unit=placement-migrate.service
+
+[Install]
+WantedBy=multi-user.target
