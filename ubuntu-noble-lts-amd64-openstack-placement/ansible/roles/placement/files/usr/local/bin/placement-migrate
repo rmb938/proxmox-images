@@ -9,6 +9,11 @@ import consul
 def main():
     lock_kv_path = "openstack-placement/migration-lock"
     sync_command = ["/usr/bin/placement-manage", "db", "sync"]
+    online_data_migrations_command = [
+        "/usr/bin/placement-manage",
+        "db",
+        "online_data_migrations",
+    ]
 
     consul_client = consul.Consul(
         host="127.0.0.1",
@@ -36,7 +41,33 @@ def main():
 
             print("Database sync successfully")
 
-            print("Database migrations complete")
+            # This is broken and returns
+            # -1 rows matched query create_incomplete_consumers, -1 migrated
+            # Forever and never stops
+            # We should report this as a bug https://bugs.launchpad.net/placement/+bug/2108000
+            #
+            #
+            # online_data_migrations_return = None
+            # while (
+            #     online_data_migrations_return is None
+            #     or online_data_migrations_return.returncode == 1
+            # ):
+            #     result = subprocess.run(
+            #         online_data_migrations_command, capture_output=True, text=True
+            #     )
+
+            #     online_data_migrations_return = result
+
+            #     print("Database ran online migrations")
+
+            # if online_data_migrations_return.returncode != 0:
+            #     print(
+            #         f"Unknown Error code from online migrations: {online_data_migrations_return}"
+            #     )
+            #     sys.exit(1)
+            #     return
+
+            # print("Database migrations complete")
         finally:
             released = consul_client.kv.put(
                 lock_kv_path, "released", release=session_id

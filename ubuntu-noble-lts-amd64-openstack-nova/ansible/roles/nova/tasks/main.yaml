@@ -55,3 +55,174 @@
     mode: "0750"
     state: directory
     recurse: true
+
+# Start Consul Tempalte for Consul
+- name: Configure Consul Template for Consul
+  ansible.builtin.template:
+    src: etc/consul-template/consul/50_nova.service.hcl
+    dest: /etc/consul-template/consul/50_nova.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Place Consul Template for Consul Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/consul/{{ item | basename }}"
+    mode: "0644"
+    owner: consul
+    group: consul
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/consul/*.ctmpl
+# End Consul Tempalte for Consul
+
+# Start Certificates
+- name: HAProxy Step Certs SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/haproxy-step-certs.service
+    dest: /etc/systemd/system/haproxy-step-certs.service
+    mode: "0644"
+
+- name: Create HAProxy systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/haproxy.service.d/
+    state: directory
+    mode: "0755"
+
+- name: HAProxy systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/haproxy.service.d/override.conf
+    dest: /etc/systemd/system/haproxy.service.d/override.conf
+    mode: "0644"
+
+- name: Cron to renew HAProxy certificates
+  ansible.builtin.cron:
+    name: "renew haproxy certificates"
+    special_time: "hourly"
+    # Rekey needs to happen against the CA, RA's don't support rekey
+    # https://smallstep.com/docs/step-ca/registration-authority-ra-mode/#stepcas-limitations
+    job: >-
+      step ca rekey /etc/ssl/private/haproxy.crt
+      /etc/ssl/private/haproxy.crt.key
+      --ca-url https://step-ca.us-homelab1.hl.rmb938.me
+      --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+      --force --expires-in 720h --exec "systemctl try-reload-or-restart haproxy"
+    state: present
+# End Certificates
+
+# Start HAProxy
+- name: HAProxy Nove API Service Consul Config
+  ansible.builtin.template:
+    src: etc/consul.d/50_haproxy-nova.service.hcl
+    dest: /etc/consul.d/50_haproxy-nova.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Add HAProxy 3.0 PPA
+  ansible.builtin.apt_repository:
+    repo: ppa:vbernat/haproxy-3.0
+    state: present
+
+- name: Install HAProxy
+  ansible.builtin.package:
+    name: 'haproxy=3.0.*'
+    state: present
+
+- name: Disable HAProxy
+  ansible.builtin.systemd_service:
+    name: haproxy
+    enabled: false
+
+- name: Own HAProxy Dir
+  ansible.builtin.file:
+    path: /etc/haproxy
+    state: directory
+    mode: '0755'
+    owner: haproxy
+    group: haproxy
+
+- name: Configure HAProxy
+  ansible.builtin.template:
+    src: etc/haproxy/haproxy.cfg
+    dest: /etc/haproxy/haproxy.cfg
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+# End HAProxy
+
+- name: Create Nova systemd override folder
+  ansible.builtin.file:
+    path: "/etc/systemd/system/nova-{{ item }}.service.d/"
+    state: directory
+    mode: "0755"
+  loop:
+    - api
+    - scheduler
+    - conductor
+    - novncproxy
+
+- name: Nova systemd Override
+  ansible.builtin.template:
+    src: "etc/systemd/system/nova-{{ item }}.service.d/override.conf"
+    dest: "/etc/systemd/system/nova-{{ item }}.service.d/override.conf"
+    mode: "0644"
+  loop:
+    - api
+    - scheduler
+    - conductor
+    - novncproxy
+
+# Start Consul Template Nova
+- name: Add nova to sudoers
+  community.general.sudoers:
+    name: nova
+    user: nova
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart nova-api nova-scheduler nova-conductor nova-novncproxy
+    state: present
+
+- name: Configure Consul Template for Nova
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-nova.hcl
+    dest: /etc/consul-template/consul-template-nova.hcl
+    mode: "0644"
+    owner: nova
+    group: nova
+
+- name: Create Consul Template for Nova Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/nova/
+    state: directory
+    mode: "0744"
+    owner: nova
+    group: nova
+
+- name: Place Consul Template for Nova Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/nova/{{ item | basename }}"
+    mode: "0644"
+    owner: nova
+    group: nova
+  with_fileglob:
+    - ../files/etc/consul-template/templates/nova/*.ctmpl
+
+- name: Place Consul Template for Nova Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/nova/{{ item | basename }}"
+    mode: "0644"
+    owner: nova
+    group: nova
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/nova/*.ctmpl
+
+- name: Consul Template for Nova SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-nova.service
+    dest: /etc/systemd/system/consul-template-nova.service
+    mode: "0644"
+# End Consul Template Nova

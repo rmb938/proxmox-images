@@ -1,0 +1,29 @@
+# {{ ansible_managed }}
+# Consul Template Managed - Consul
+
+services {
+  name = "openstack-nova-controller"
+  id   = "openstack-nova-controller"
+  port = 8774
+
+  check = {
+    id = "openstack-nova-controller"
+    name = "Nova API on port 8774"
+    http = "https://{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:8774/"
+
+    interval = "30s"
+    timeout = "5s"
+  }
+
+  meta {
+    haproxy_t2 = "true"
+    haproxy_t2_check_uri = "/"
+
+    nova_version = "{{ ansible_facts.packages['nova-api'][0].version }}"
+
+    openstack_keystone_service = "true"
+    openstack_keystone_service_name = "nova"
+    openstack_keystone_service_type = "compute"
+    openstack_keystone_service_uri = "/v2.1"
+  }
+}
