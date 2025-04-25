@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="nova-migrate"
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=24h
+Unit=nova-migrate.service
+
+[Install]
+WantedBy=multi-user.target

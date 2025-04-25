@@ -45,6 +45,12 @@
     - nova-scheduler
     - nova-conductor
     - nova-novncproxy
+
+- name: Patch Compute Node _get_node_empty_ratio
+  # This fixes issues with online migrations, postgres can't compare 0.0 to '0.0'
+  ansible.posix.patch:
+    src: usr/lib/python3/dist-packages/nova/objects/compute_node.py.patch
+    dest: /usr/lib/python3/dist-packages/nova/objects/compute_node.py
 # End Install
 
 - name: Own nova dir
@@ -226,3 +232,32 @@
     dest: /etc/systemd/system/consul-template-nova.service
     mode: "0644"
 # End Consul Template Nova
+
+- name: Place nova-migrate script
+  ansible.builtin.copy:
+    src: usr/local/bin/nova-migrate
+    dest: /usr/local/bin/nova-migrate
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Place nova-migrate service
+  ansible.builtin.template:
+    src: etc/systemd/system/nova-migrate.service
+    dest: /etc/systemd/system/nova-migrate.service
+    mode: "0644"
+
+- name: Place nova-migrate timer
+  ansible.builtin.template:
+    src: etc/systemd/system/nova-migrate.timer
+    dest: /etc/systemd/system/nova-migrate.timer
+    mode: "0644"
+
+- name: SystemD daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable nova-migrate timer
+  ansible.builtin.systemd:
+    name: nova-migrate.timer
+    enabled: true

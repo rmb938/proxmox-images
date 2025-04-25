@@ -44,17 +44,6 @@ template {
   }
 }
 
-# Postgres User - nova
-template {
-  source = "/etc/consul-template/templates/nova/postgres-user-nova.ctmpl"
-  destination = "/etc/nova/postgres-user-nova.rendered"
-  create_dest_dirs = false
-  perms = "0600"
-  exec {
-    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor nova-novncproxy || true"
-  }
-}
-
 # Postgres User - nova-cell0
 template {
   source = "/etc/consul-template/templates/nova/postgres-user-nova-cell0.ctmpl"

@@ -1,0 +1,148 @@
+#! /usr/bin/python3
+
+import subprocess
+import sys
+
+import consul
+
+
+def has_cell(cell_name: str):
+    list_cells_command = [
+        "/usr/bin/nova-manage",
+        "cell_v2",
+        "list_cells",
+    ]
+
+    result = subprocess.run(list_cells_command, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print(f"Unknown Error code from list cells: {result}")
+        sys.exit(1)
+        return
+
+    if f"nova-{cell_name}" in result.stdout:
+        return True
+
+    return False
+
+
+def main():
+    lock_kv_path = "openstack-nova-controller/migration-lock"
+    api_sync_command = ["/usr/bin/nova-manage", "api_db", "sync"]
+
+    map_cell0_command = [
+        "/usr/bin/nova-manage",
+        "cell_v2",
+        "map_cell0",
+        "--database_connection",
+        "postgresql+psycopg://nova-cell0@primary.openstack-postgres.service.consul:7432/nova-cell0?sslcert=/etc/nova/postgres-user-nova-cell0.crt&sslkey=/etc/nova/postgres-user-nova-cell0.key&sslmode=verify-full&sslrootcert=/etc/nova/postgres-server-ca.crt",
+    ]
+    create_cell_cell1_command = [
+        "/usr/bin/nova-manage",
+        "cell_v2",
+        "create_cell",
+        "--name=cell1",
+        "--verbose",
+        "--database_connection",
+        "postgresql+psycopg://nova-cell1@primary.openstack-postgres.service.consul:7432/nova-cell1?sslcert=/etc/nova/postgres-user-nova-cell1.crt&sslkey=/etc/nova/postgres-user-nova-cell1.key&sslmode=verify-full&sslrootcert=/etc/nova/postgres-server-ca.crt",
+    ]
+
+    sync_command = ["/usr/bin/nova-manage", "db", "sync"]
+    online_data_migrations_command = [
+        "/usr/bin/nova-manage",
+        "db",
+        "online_data_migrations",
+    ]
+
+    consul_client = consul.Consul(
+        host="127.0.0.1",
+        port=8500,
+        consistency="consistent",
+    )
+
+    session_id = consul_client.session.create(ttl=60, behavior="delete")
+
+    try:
+        acquired = consul_client.kv.put(lock_kv_path, "locked", acquire=session_id)
+
+        if not acquired:
+            # Not exiting 1 here because it's normal
+            print(f"Could not aquire consul lock at {lock_kv_path}")
+            return
+
+        try:
+            result = subprocess.run(api_sync_command, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                print(f"Unknown Error code from api_db sync: {result}")
+                sys.exit(1)
+                return
+
+            print("API Database sync successfully")
+
+            if not has_cell("cell0"):
+                result = subprocess.run(
+                    map_cell0_command, capture_output=True, text=True
+                )
+
+                if result.returncode != 0:
+                    print(f"Unknown Error code from map_cell0: {result}")
+                    sys.exit(1)
+                    return
+
+                print("mapped cell0 successfully")
+
+            if not has_cell("cell1"):
+                result = subprocess.run(
+                    create_cell_cell1_command, capture_output=True, text=True
+                )
+
+                if result.returncode != 0:
+                    print(f"Unknown Error code from create cell cell1: {result}")
+                    sys.exit(1)
+                    return
+
+                print("created cell1 successfully")
+
+            result = subprocess.run(sync_command, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                print(f"Unknown Error code from sync: {result}")
+                sys.exit(1)
+                return
+
+            print("Database sync successfully")
+
+            online_data_migrations_return = None
+            while (
+                online_data_migrations_return is None
+                or online_data_migrations_return.returncode == 1
+            ):
+                result = subprocess.run(
+                    online_data_migrations_command, capture_output=True, text=True
+                )
+
+                online_data_migrations_return = result
+
+                print("Database ran online migrations")
+
+            if online_data_migrations_return.returncode != 0:
+                print(
+                    f"Unknown Error code from online migrations: {online_data_migrations_return}"
+                )
+                sys.exit(1)
+                return
+
+            print("Database migrations complete")
+        finally:
+            released = consul_client.kv.put(
+                lock_kv_path, "released", release=session_id
+            )
+            print(f"Lock released: {released}")
+    finally:
+        destroyed = consul_client.session.destroy(session_id)
+        print(f"Session {session_id} destroyed: {destroyed}")
+
+
+if __name__ == "__main__":
+    main()

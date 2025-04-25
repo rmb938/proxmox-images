@@ -1,0 +1,25 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="nova-migrate"
+Requires=network-online.target
+
+After=network-online.target
+
+ConditionFileNotEmpty=/etc/nova/nova.conf
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+
+User=nova
+Group=nova
+
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+
+ExecStart=/usr/local/bin/nova-migrate
+
+[Install]
+WantedBy=multi-user.target

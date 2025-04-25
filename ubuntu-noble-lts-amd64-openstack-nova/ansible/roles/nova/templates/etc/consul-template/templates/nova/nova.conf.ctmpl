@@ -1949,11 +1949,11 @@ pool_timeout = 5
 
 # The SQLAlchemy connection string to use to connect to the database (string
 # value)
-connection = postgresql+psycopg://nova@primary.openstack-postgres.service.consul:7432/nova?sslmode=verify-full&sslrootcert=/etc/nova/postgres-server-ca.crt&sslcert=/etc/nova/postgres-user-nova.crt&sslkey=/etc/nova/postgres-user-nova.key
+connection = postgresql+psycopg://nova-cell1@primary.openstack-postgres.service.consul:7432/nova-cell1?sslmode=verify-full&sslrootcert=/etc/nova/postgres-server-ca.crt&sslcert=/etc/nova/postgres-user-nova-cell1.crt&sslkey=/etc/nova/postgres-user-nova-cell1.key
 
 # The SQLAlchemy connection string to use to connect to the slave database.
 # (string value)
-slave_connection = postgresql+psycopg://nova@replica.openstack-postgres.service.consul:8432/nova?sslmode=verify-full&sslrootcert=/etc/nova/postgres-server-ca.crt&sslcert=/etc/nova/postgres-user-nova.crt&sslkey=/etc/nova/postgres-user-nova.key
+slave_connection = postgresql+psycopg://nova-cell1@replica.openstack-postgres.service.consul:8432/nova-cell1?sslmode=verify-full&sslrootcert=/etc/nova/postgres-server-ca.crt&sslcert=/etc/nova/postgres-user-nova-cell1.crt&sslkey=/etc/nova/postgres-user-nova-cell1.key
 
 # The SQLAlchemy asyncio connection string to use to connect to the database
 # (string value)
@@ -5312,7 +5312,7 @@ application_credential_secret = {{ .Data.application_credential_secret }}
 # Periodic task interval. For more information, refer to the documentation.
 # (integer value)
 # Minimum value: -1
-#discover_hosts_in_cells_interval = -1
+discover_hosts_in_cells_interval = 300
 
 #
 # The maximum number of placement results to request. For more information,

@@ -1,0 +1,15 @@
+--- /usr/lib/python3/dist-packages/nova/objects/compute_node.py 2025-04-25 17:27:46.737711803 -0500
++++ fixed_compute_node.py       2025-04-25 17:28:21.680412075 -0500
+@@ -521,9 +521,9 @@
+     Results are limited by ``max_count``.
+     """
+     return context.session.query(models.ComputeNode).filter(sa.or_(
+-        models.ComputeNode.ram_allocation_ratio == '0.0',
+-        models.ComputeNode.cpu_allocation_ratio == '0.0',
+-        models.ComputeNode.disk_allocation_ratio == '0.0',
++        models.ComputeNode.ram_allocation_ratio == 0.0,
++        models.ComputeNode.cpu_allocation_ratio == 0.0,
++        models.ComputeNode.disk_allocation_ratio == 0.0,
+         models.ComputeNode.ram_allocation_ratio == sql.null(),
+         models.ComputeNode.cpu_allocation_ratio == sql.null(),
+         models.ComputeNode.disk_allocation_ratio == sql.null()

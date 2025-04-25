@@ -193,7 +193,7 @@
   ansible.builtin.systemd:
     daemon_reload: true
 
-- name: Start and enable Vault
+- name: Enable Vault
   ansible.builtin.systemd:
     name: vault
     # Make sure vault agent is not started, consul-template-consul will start it with Wants
