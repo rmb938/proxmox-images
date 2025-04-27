@@ -1,0 +1,11 @@
+--- /usr/lib/python3/dist-packages/placement/objects/allocation.py      2024-10-02 05:59:14.000000000 -0500
++++ allocation.patched.py       2025-04-27 11:20:38.749459200 -0500
+@@ -380,7 +380,7 @@
+             consumer_id=consumer_id,
+             used=alloc.used)
+         res = context.session.execute(ins_stmt)
+-        alloc.id = res.lastrowid
++        alloc.id = res.inserted_primary_key[0]
+ 
+     # Generation checking happens here. If the inventory for this resource
+     # provider changed out from under us, this will raise a

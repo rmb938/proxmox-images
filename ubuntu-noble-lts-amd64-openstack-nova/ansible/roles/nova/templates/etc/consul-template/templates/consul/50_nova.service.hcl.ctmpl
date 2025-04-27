@@ -24,6 +24,26 @@ services {
     openstack_keystone_service = "true"
     openstack_keystone_service_name = "nova"
     openstack_keystone_service_type = "compute"
-    openstack_keystone_service_uri = "/v2.1"
+    openstack_keystone_service_uri = "v2.1"
+  }
+}
+
+services {
+  name = "openstack-nova-controller-metadata"
+  id   = "openstack-nova-controller-metadata"
+  port = 8775
+
+  check = {
+    id = "openstack-nova-controller-metadata"
+    name = "Nova Metadata on port 8775"
+    http = "https://{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:8775/"
+
+    interval = "30s"
+    timeout = "5s"
+  }
+
+  meta {
+    haproxy_t2 = "true"
+    haproxy_t2_check_uri = "/"
   }
 }

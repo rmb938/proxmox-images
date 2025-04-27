@@ -35,7 +35,7 @@ def main():
         "cell_v2",
         "map_cell0",
         "--database_connection",
-        "postgresql+psycopg://nova-cell0@primary.openstack-postgres.service.consul:7432/nova-cell0?sslcert=/etc/nova/postgres-user-nova-cell0.crt&sslkey=/etc/nova/postgres-user-nova-cell0.key&sslmode=verify-full&sslrootcert=/etc/nova/postgres-server-ca.crt",
+        "postgresql+psycopg://nova-cell0@primary.openstack-postgres.service.consul:7432/nova-cell0?sslmode=verify-full&sslrootcert=/etc/nova/postgres-server-ca.crt&sslcert=/etc/nova/postgres-user-nova-cell0.crt&sslkey=/etc/nova/postgres-user-nova-cell0.key",
     ]
     create_cell_cell1_command = [
         "/usr/bin/nova-manage",
@@ -44,7 +44,7 @@ def main():
         "--name=cell1",
         "--verbose",
         "--database_connection",
-        "postgresql+psycopg://nova-cell1@primary.openstack-postgres.service.consul:7432/nova-cell1?sslcert=/etc/nova/postgres-user-nova-cell1.crt&sslkey=/etc/nova/postgres-user-nova-cell1.key&sslmode=verify-full&sslrootcert=/etc/nova/postgres-server-ca.crt",
+        "postgresql+psycopg://nova-cell1@primary.openstack-postgres.service.consul:7432/nova-cell1?sslmode=verify-full&sslrootcert=/etc/nova/postgres-server-ca.crt&sslcert=/etc/nova/postgres-user-nova-cell1.crt&sslkey=/etc/nova/postgres-user-nova-cell1.key",
     ]
 
     sync_command = ["/usr/bin/nova-manage", "db", "sync"]

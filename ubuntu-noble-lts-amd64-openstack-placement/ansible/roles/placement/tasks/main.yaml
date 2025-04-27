@@ -37,6 +37,12 @@
     name: apache2
     state: stopped
     enabled: false
+
+- name: Patch _set_allocations lastrowid
+  # Postgres does not support lastrowid so update to generic sqlalchemy inserted_primary_key
+  ansible.posix.patch:
+    src: usr/lib/python3/dist-packages/placement/objects/allocation.py.patch
+    dest: /usr/lib/python3/dist-packages/placement/objects/allocation.py
 # End Install
 
 - name: Own placement dir

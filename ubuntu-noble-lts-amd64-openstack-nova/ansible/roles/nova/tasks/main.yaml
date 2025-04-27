@@ -51,6 +51,12 @@
   ansible.posix.patch:
     src: usr/lib/python3/dist-packages/nova/objects/compute_node.py.patch
     dest: /usr/lib/python3/dist-packages/nova/objects/compute_node.py
+
+- name: Patch oslo_versionedobjects IPAddress
+  # Postgres returns IPv4Address instead of string for ipaddress columns
+  ansible.posix.patch:
+    src: usr/lib/python3/dist-packages/oslo_versionedobjects/fields.py.patch
+    dest: /usr/lib/python3/dist-packages/oslo_versionedobjects/fields.py
 # End Install
 
 - name: Own nova dir

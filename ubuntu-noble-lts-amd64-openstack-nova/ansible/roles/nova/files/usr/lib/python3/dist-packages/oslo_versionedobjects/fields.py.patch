@@ -1,0 +1,19 @@
+--- /usr/lib/python3/dist-packages/oslo_versionedobjects/fields.py      2024-05-23 03:25:52.000000000 -0500
++++ patched_fields.py   2025-04-26 12:03:54.920673901 -0500
+@@ -23,6 +23,7 @@
+ import copy
+ import iso8601
+ import netaddr
++import ipaddress
+ from oslo_utils import strutils
+ from oslo_utils import timeutils
+ 
+@@ -505,6 +506,8 @@
+     @staticmethod
+     def coerce(obj, attr, value):
+         try:
++            if isinstance(value, ipaddress.IPv4Address):
++                value = format(value)
+             return netaddr.IPAddress(value)
+         except netaddr.AddrFormatError as e:
+             raise ValueError(str(e))

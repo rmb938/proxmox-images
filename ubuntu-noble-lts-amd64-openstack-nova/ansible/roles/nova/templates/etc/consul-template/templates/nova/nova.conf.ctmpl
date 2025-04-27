@@ -5663,22 +5663,22 @@ application_credential_secret = {{ .Data.application_credential_secret }}
 #
 # Compute RPC API version cap. For more information, refer to the documentation.
 # (string value)
-compute = dalmatian
+#compute = dalmatian
 
 #
 # Scheduler RPC API version cap. For more information, refer to the
 # documentation. (string value)
-scheduler = dalmatian
+#scheduler = dalmatian
 
 #
 # Conductor RPC API version cap. For more information, refer to the
 # documentation. (string value)
-conductor = dalmatian
+#conductor = dalmatian
 
 #
 # Base API RPC API version cap. For more information, refer to the
 # documentation. (string value)
-baseapi = dalmatian
+#baseapi = dalmatian
 
 
 [vault]
