@@ -1,0 +1,6 @@
+---
+roles:
+  - name: rmb938.application
+    src: https://github.com/rmb938/ansible-application-role.git
+    version: main
+    scm: git

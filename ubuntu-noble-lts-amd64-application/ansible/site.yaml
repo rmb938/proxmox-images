@@ -1,8 +1,8 @@
-- name: Bootstrap
+- name: Application
   hosts: all
   become: true
   roles:
-    - application
+    - rmb938.application
   vars:
     is_packer: true
     step_ca_url: "https://step-ca.us-homelab1.hl.rmb938.me"

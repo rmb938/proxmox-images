@@ -64,6 +64,18 @@
     name: cinder-volume
     state: stopped
     enabled: false
+
+- name: Create openstack-services group
+  ansible.builtin.group:
+    name: openstack-services
+    gid: 64100
+    state: present
+
+- name: Add cinder user to openstack-services group
+  ansible.builtin.user:
+    name: cinder
+    groups: openstack-services
+    append: true
 # End Install
 
 - name: Own cinder dir

@@ -1,3 +1,0 @@
-{{ with secret "pki_consul_connect_root/cert/ca" }}
-{{ .Data.certificate }}
-{{ end }}
