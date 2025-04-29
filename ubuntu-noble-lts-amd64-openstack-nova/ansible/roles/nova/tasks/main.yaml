@@ -28,7 +28,6 @@
       - nova-api
       - nova-conductor
       - nova-scheduler
-      - nova-novncproxy
     state: present
 
 - name: GET PACKAGE FACTS
@@ -44,7 +43,6 @@
     - nova-api
     - nova-scheduler
     - nova-conductor
-    - nova-novncproxy
 
 - name: Patch Compute Node _get_node_empty_ratio
   # This fixes issues with online migrations, postgres can't compare 0.0 to '0.0'
@@ -172,7 +170,6 @@
     - api
     - scheduler
     - conductor
-    - novncproxy
 
 - name: Nova systemd Override
   ansible.builtin.template:
@@ -183,7 +180,6 @@
     - api
     - scheduler
     - conductor
-    - novncproxy
 
 # Start Consul Template Nova
 - name: Add nova to sudoers
@@ -193,7 +189,7 @@
     nopassword: true
     validation: required
     commands:
-      - /usr/bin/systemctl reload-or-restart nova-api nova-scheduler nova-conductor nova-novncproxy
+      - /usr/bin/systemctl reload-or-restart nova-api nova-scheduler nova-conductor
     state: present
 
 - name: Configure Consul Template for Nova

@@ -29,7 +29,7 @@ template {
   create_dest_dirs = false
   perms = "0644"
   exec {
-    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor nova-novncproxy || true"
+    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor || true"
   }
 }
 
@@ -40,7 +40,7 @@ template {
   create_dest_dirs = false
   perms = "0600"
   exec {
-    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor nova-novncproxy || true"
+    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor || true"
   }
 }
 
@@ -51,7 +51,7 @@ template {
   create_dest_dirs = false
   perms = "0600"
   exec {
-    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor nova-novncproxy || true"
+    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor || true"
   }
 }
 
@@ -62,7 +62,7 @@ template {
   create_dest_dirs = false
   perms = "0600"
   exec {
-    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor nova-novncproxy || true"
+    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor || true"
   }
 }
 
@@ -73,7 +73,7 @@ template {
   create_dest_dirs = false
   perms = "0644"
   exec {
-    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor nova-novncproxy || true"
+    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor || true"
   }
 }
 
@@ -84,7 +84,7 @@ template {
   create_dest_dirs = false
   perms = "0600"
   exec {
-    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor nova-novncproxy  || true"
+    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor || true"
   }
 }
 
@@ -95,6 +95,6 @@ template {
   create_dest_dirs = false
   perms = "0600"
   exec {
-    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor nova-novncproxy || true"
+    command = "sudo systemctl reload-or-restart nova-api nova-scheduler nova-conductor || true"
   }
 }
