@@ -1,0 +1,28 @@
+# {{ ansible_managed }}
+# Consul Template Managed - Consul
+
+services {
+  name = "openstack-octavia-controller"
+  id   = "openstack-octavia-controller"
+  port = 9876
+
+  check = {
+    id = "openstack-octavia-controller"
+    name = "Octavia API on port 9876"
+    http = "https://{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:9876/"
+
+    interval = "30s"
+    timeout = "5s"
+  }
+
+  meta {
+    haproxy_t2 = "true"
+    haproxy_t2_check_uri = "/"
+
+    octavia_version = "{{ ansible_facts.packages['octavia-api'][0].version }}"
+
+    openstack_keystone_service = "true"
+    openstack_keystone_service_name = "octavia"
+    openstack_keystone_service_type = "load-balancer"
+  }
+}

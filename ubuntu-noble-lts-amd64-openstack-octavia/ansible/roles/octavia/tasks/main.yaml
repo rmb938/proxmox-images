@@ -1,0 +1,210 @@
+---
+# Start Install
+- name: UBUNTU CLOUD KEYRING
+  ansible.builtin.package:
+    name: ubuntu-cloud-keyring
+    state: present
+
+- name: INSTALL OPENSTACK REPO
+  ansible.builtin.apt_repository:
+    repo: deb http://ubuntu-cloud.archive.canonical.com/ubuntu noble-updates/dalmatian main
+
+- name: INSTALL OPENSTACK CLIENT Ubuntu
+  ansible.builtin.package:
+    name:
+      - python3-openstackclient
+      - python3-osc-placement
+      - python3-octaviaclient
+
+- name: INSTALL SUPPORTING LIBS
+  ansible.builtin.package:
+    name:
+      - python3-psycopg
+      - python3-consul
+
+- name: INSTALL Octavia
+  ansible.builtin.package:
+    name:
+      - octavia-api
+      - octavia-health-manager
+      - octavia-housekeeping
+      - octavia-worker
+      - octavia-driver-agent
+      - python3-octavia
+      - python3-ovn-octavia-provider
+    state: present
+
+- name: GET PACKAGE FACTS
+  ansible.builtin.package_facts:
+    manager: "auto"
+
+- name: DISABLE Octavia Services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - octavia-api
+    - octavia-health-manager
+    - octavia-housekeeping
+    - octavia-worker
+    - octavia-driver-agent
+# End Install
+
+- name: Own octavia dir
+  ansible.builtin.file:
+    path: /etc/octavia
+    owner: octavia
+    group: octavia
+    mode: "0750"
+    state: directory
+    recurse: true
+
+# Start Consul Tempalte for Consul
+- name: Configure Consul Template for Consul
+  ansible.builtin.template:
+    src: etc/consul-template/consul/50_octavia.service.hcl
+    dest: /etc/consul-template/consul/50_octavia.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Place Consul Template for Consul Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/consul/{{ item | basename }}"
+    mode: "0644"
+    owner: consul
+    group: consul
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/consul/*.ctmpl
+# End Consul Tempalte for Consul
+
+# Start Certificates
+- name: HAProxy Step Certs SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/haproxy-step-certs.service
+    dest: /etc/systemd/system/haproxy-step-certs.service
+    mode: "0644"
+
+- name: Create HAProxy systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/haproxy.service.d/
+    state: directory
+    mode: "0755"
+
+- name: HAProxy systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/haproxy.service.d/override.conf
+    dest: /etc/systemd/system/haproxy.service.d/override.conf
+    mode: "0644"
+
+- name: Cron to renew HAProxy certificates
+  ansible.builtin.cron:
+    name: "renew haproxy certificates"
+    special_time: "hourly"
+    # Rekey needs to happen against the CA, RA's don't support rekey
+    # https://smallstep.com/docs/step-ca/registration-authority-ra-mode/#stepcas-limitations
+    job: >-
+      step ca rekey /etc/ssl/private/haproxy.crt
+      /etc/ssl/private/haproxy.crt.key
+      --ca-url https://step-ca.us-homelab1.hl.rmb938.me
+      --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+      --force --expires-in 720h --exec "systemctl try-reload-or-restart haproxy"
+    state: present
+# End Certificates
+
+# Start HAProxy
+- name: HAProxy Nove API Service Consul Config
+  ansible.builtin.template:
+    src: etc/consul.d/50_haproxy-octavia.service.hcl
+    dest: /etc/consul.d/50_haproxy-octavia.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Add HAProxy 3.0 PPA
+  ansible.builtin.apt_repository:
+    repo: ppa:vbernat/haproxy-3.0
+    state: present
+
+- name: Install HAProxy
+  ansible.builtin.package:
+    name: 'haproxy=3.0.*'
+    state: present
+
+- name: Disable HAProxy
+  ansible.builtin.systemd_service:
+    name: haproxy
+    enabled: false
+
+- name: Own HAProxy Dir
+  ansible.builtin.file:
+    path: /etc/haproxy
+    state: directory
+    mode: '0755'
+    owner: haproxy
+    group: haproxy
+
+- name: Configure HAProxy
+  ansible.builtin.template:
+    src: etc/haproxy/haproxy.cfg
+    dest: /etc/haproxy/haproxy.cfg
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+# End HAProxy
+
+# Start Consul Template Octavia
+- name: Add octavia to sudoers
+  community.general.sudoers:
+    name: octavia
+    user: octavia
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart octavia-api octavia-health-manager octavia-housekeeping octavia-worker octavia-driver-agent
+    state: present
+
+- name: Configure Consul Template for Octavia
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-octavia.hcl
+    dest: /etc/consul-template/consul-template-octavia.hcl
+    mode: "0644"
+    owner: octavia
+    group: octavia
+
+- name: Create Consul Template for Octavia Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/octavia/
+    state: directory
+    mode: "0744"
+    owner: octavia
+    group: octavia
+
+- name: Place Consul Template for Octavia Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/octavia/{{ item | basename }}"
+    mode: "0644"
+    owner: octavia
+    group: octavia
+  with_fileglob:
+    - ../files/etc/consul-template/templates/octavia/*.ctmpl
+
+- name: Place Consul Template for Octavia Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/octavia/{{ item | basename }}"
+    mode: "0644"
+    owner: octavia
+    group: octavia
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/octavia/*.ctmpl
+
+- name: Consul Template for Octavia SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-octavia.service
+    dest: /etc/systemd/system/consul-template-octavia.service
+    mode: "0644"
+# End Consul Template Octavia
