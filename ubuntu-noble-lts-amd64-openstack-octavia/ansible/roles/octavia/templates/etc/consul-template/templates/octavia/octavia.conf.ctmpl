@@ -329,10 +329,10 @@ bind_port = 9875
 
 # A comma separated list of dictionaries of the enabled provider driver names and descriptions. Must match the driver name in the
 # octavia.api.drivers entrypoint. (dict value)
-#enabled_provider_drivers = amphora:The Octavia Amphora driver.,octavia:Deprecated alias of the Octavia Amphora driver.
+enabled_provider_drivers = ovn:The OVN driver.
 
 # Default provider driver. (string value)
-#default_provider_driver = amphora
+default_provider_driver = ovn
 
 # The minimum health monitor delay interval for the UDP-CONNECT Health Monitor type. A negative integer value means 'no limit'. (integer
 # value)
@@ -637,7 +637,7 @@ connection = postgresql+psycopg://octavia@primary.openstack-postgres.service.con
 
 # The SQLAlchemy connection string to use to connect to the slave database.
 # (string value)
-slave_connection = postgresql+psycopg://octavia@replica.openstack-postgres.service.consul:8432/octavia?sslmode=verify-full&sslrootcert=/etc/octavia/postgres-server-ca.crt&sslcert=/etc/octavia/postgres-user-octaviacrt&sslkey=/etc/octavia/postgres-user-octavia.key
+slave_connection = postgresql+psycopg://octavia@replica.openstack-postgres.service.consul:8432/octavia?sslmode=verify-full&sslrootcert=/etc/octavia/postgres-server-ca.crt&sslcert=/etc/octavia/postgres-user-octavia.crt&sslkey=/etc/octavia/postgres-user-octavia.key
 
 # The SQLAlchemy asyncio connection string to use to connect to the database
 # (string value)
@@ -751,7 +751,7 @@ pool_timeout = 5
 #provider_agent_shutdown_timeout = 60
 
 # List of enabled provider agents. The driver-agent will launch these agents at startup. (list value)
-#enabled_provider_agents =
+enabled_provider_agents = ovn
 
 
 [glance]
@@ -830,7 +830,7 @@ pool_timeout = 5
 
 # Log format string for user flow logging. (string value)
 {% raw %}
-#user_log_format = {{ project_id }} {{ lb_id }} %f %ci %cp %t %{+Q}r %ST %B %U %[ssl_c_verify] %{+Q}[ssl_c_s_dn] %b %s %Tt %tsc
+#user_log_format = {{ `{{ project_id }} {{ lb_id }} %f %ci %cp %t %{+Q}r %ST %B %U %[ssl_c_verify] %{+Q}[ssl_c_s_dn] %b %s %Tt %tsc` }}
 {% endraw %}
 
 # The host IP to bind to (IP address value)
@@ -1963,8 +1963,9 @@ application_credential_secret = {{ .Data.application_credential_secret }}
 # Multiple connections can be specified by a comma separated string. See also:
 # https://github.com/openvswitch/ovs/blob/ab4d3bfbef37c31331db5a9dbe7c22eb8d5e5e5f/python/ovs/db/idl.py#L215-L216
 # (list value)
+# TODO: for some reason octavia can't connect via DNS records, an strace shows it tries to do ipv6 on :: and port 0
 {% raw %}
-ovn_nb_connection = {{range $index, $service := service "openstack-ovn-northd-nb-ovsdb|any"}}{{if ne $index 0}},{{end}}ssl:{{.Node}}.node.consul:6641{{end}}
+ovn_nb_connection = {{range $index, $service := service "openstack-ovn-northd-nb-ovsdb|any"}}{{if ne $index 0}},{{end}}ssl:{{ .Address }}:6641{{end}}
 {% endraw %}
 
 # The PEM file with private key for SSL connection to OVN-NB-DB (string value)
@@ -1986,8 +1987,9 @@ ovn_nb_ca_cert = /etc/octavia/ovn-nb-ovsdb-ca.crt
 # Multiple connections can be specified by a comma separated string. See also:
 # https://github.com/openvswitch/ovs/blob/ab4d3bfbef37c31331db5a9dbe7c22eb8d5e5e5f/python/ovs/db/idl.py#L215-L216
 # (list value)
+# TODO: for some reason octavia can't connect via DNS records, an strace shows it tries to do ipv6 on :: and port 0
 {% raw %}
-ovn_sb_connection = {{range $index, $service := service "openstack-ovn-northd-sb-ovsdb|any"}}{{if ne $index 0}},{{end}}ssl:{{.Node}}.node.consul:6642{{end}}
+ovn_sb_connection = {{range $index, $service := service "openstack-ovn-northd-sb-ovsdb|any"}}{{if ne $index 0}},{{end}}ssl:{{ .Address }}:6642{{end}}
 {% endraw %}
 
 # The PEM file with private key for SSL connection to OVN-SB-DB (string value)
