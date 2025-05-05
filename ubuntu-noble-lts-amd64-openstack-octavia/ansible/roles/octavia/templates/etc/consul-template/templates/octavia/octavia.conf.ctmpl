@@ -1233,6 +1233,20 @@ application_credential_secret = {{ .Data.application_credential_secret }}
 # Reason: The cafile option defined by keystoneauth1 is the new name for this option.
 #ca_certificates_file = <None>
 
+# Authentication URL (string value)
+auth_url = https://openstack-keystone.haproxy.us-homelab1.hl.rmb938.me
+
+# Authentication type to load (string value)
+# Deprecated group/name - [service_auth]/auth_plugin
+auth_type = v3applicationcredential
+
+{% raw %}
+{{ with secret "secret/openstack-keystone/service-users/octavia" }}
+# Expires At {{ .Data.expires_at }}
+application_credential_id = {{ .Data.application_credential_id }}
+application_credential_secret = {{ .Data.application_credential_secret }}
+{{ end }}
+{% endraw %}
 
 [nova]
 
