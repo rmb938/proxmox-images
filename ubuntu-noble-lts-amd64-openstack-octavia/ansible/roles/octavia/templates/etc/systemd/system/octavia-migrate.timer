@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="octavia-migrate"
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=24h
+Unit=octavia-migrate.service
+
+[Install]
+WantedBy=multi-user.target

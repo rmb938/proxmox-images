@@ -21,6 +21,7 @@
     name:
       - python3-psycopg
       - python3-consul
+      - python3-venv
 
 - name: INSTALL Octavia
   ansible.builtin.package:
@@ -49,6 +50,27 @@
     - octavia-housekeeping
     - octavia-worker
     - octavia-driver-agent
+
+- name: Git clone octavia postgres fix
+  ansible.builtin.git:
+    repo: https://review.opendev.org/openstack/octavia
+    dest: /opt/octavia
+    version: FETCH_HEAD
+    refspec: refs/changes/67/948767/4
+
+- name: Install Octavia Postgres Fix
+  ansible.builtin.pip:
+    name: /opt/octavia
+    editable: true
+    virtualenv: /opt/.octavia-venv
+    virtualenv_command: "/usr/bin/python3 -m venv"
+
+- name: Install psycopg into octavia postgres fix venv
+  ansible.builtin.pip:
+    name:
+      - psycopg
+      - psycopg2-binary
+    virtualenv: /opt/.octavia-venv
 # End Install
 
 - name: Own octavia dir
@@ -155,6 +177,30 @@
     group: haproxy
 # End HAProxy
 
+- name: Create Octavia Service systemd override folder
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.service.d/"
+    state: directory
+    mode: "0755"
+  loop:
+    - octavia-api
+    - octavia-health-manager
+    - octavia-housekeeping
+    - octavia-worker
+    - octavia-driver-agent
+
+- name: Octavia Service systemd Override
+  ansible.builtin.template:
+    src: "etc/systemd/system/{{ item }}.service.d/override.conf"
+    dest: "/etc/systemd/system/{{ item }}.service.d/override.conf"
+    mode: "0644"
+  loop:
+    - octavia-api
+    - octavia-health-manager
+    - octavia-housekeeping
+    - octavia-worker
+    - octavia-driver-agent
+
 # Start Consul Template Octavia
 - name: Add octavia to sudoers
   community.general.sudoers:
@@ -208,3 +254,32 @@
     dest: /etc/systemd/system/consul-template-octavia.service
     mode: "0644"
 # End Consul Template Octavia
+
+- name: Place octavia-migrate script
+  ansible.builtin.copy:
+    src: usr/local/bin/octavia-migrate
+    dest: /usr/local/bin/octavia-migrate
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Place octavia-migrate service
+  ansible.builtin.template:
+    src: etc/systemd/system/octavia-migrate.service
+    dest: /etc/systemd/system/octavia-migrate.service
+    mode: "0644"
+
+- name: Place octavia-migrate timer
+  ansible.builtin.template:
+    src: etc/systemd/system/octavia-migrate.timer
+    dest: /etc/systemd/system/octavia-migrate.timer
+    mode: "0644"
+
+- name: SystemD daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable octavia-migrate timer
+  ansible.builtin.systemd:
+    name: octavia-migrate.timer
+    enabled: true

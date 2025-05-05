@@ -1,0 +1,51 @@
+#! /usr/bin/python3
+
+import subprocess
+import sys
+
+import consul
+
+
+def main():
+    lock_kv_path = "openstack-octavia/migration-lock"
+    sync_command = ["/opt/.octavia-venv/bin/octavia-db-manage", "upgrade", "heads"]
+
+    consul_client = consul.Consul(
+        host="127.0.0.1",
+        port=8500,
+        consistency="consistent",
+    )
+
+    session_id = consul_client.session.create(ttl=60, behavior="delete")
+
+    try:
+        acquired = consul_client.kv.put(lock_kv_path, "locked", acquire=session_id)
+
+        if not acquired:
+            # Not exiting 1 here because it's normal
+            print(f"Could not aquire consul lock at {lock_kv_path}")
+            return
+
+        try:
+            result = subprocess.run(sync_command, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                print(f"Unknown Error code from sync: {result}")
+                sys.exit(1)
+                return
+
+            print("Database sync successfully")
+
+            print("Database migrations complete")
+        finally:
+            released = consul_client.kv.put(
+                lock_kv_path, "released", release=session_id
+            )
+            print(f"Lock released: {released}")
+    finally:
+        destroyed = consul_client.session.destroy(session_id)
+        print(f"Session {session_id} destroyed: {destroyed}")
+
+
+if __name__ == "__main__":
+    main()
