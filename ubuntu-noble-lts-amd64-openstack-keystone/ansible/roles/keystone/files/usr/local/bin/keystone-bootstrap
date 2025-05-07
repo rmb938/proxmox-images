@@ -1,16 +1,20 @@
 #! /usr/bin/python3
 
+import secrets
 import subprocess
 import sys
+from datetime import datetime, timedelta
 
 import consul
+import hvac
+from hvac.exceptions import InvalidPath
 
 
-def bootstrap():
+def bootstrap(admin_password: str):
     bootstrap_command = [
         "/usr/bin/keystone-manage",
         "bootstrap",
-        "--bootstrap-password=admin-asdasd",  # TODO: get this from vault
+        f"--bootstrap-password={admin_password}",
         "--bootstrap-admin-url=https://openstack-keystone.haproxy.us-homelab1.hl.rmb938.me/v3/",
         "--bootstrap-internal-url=https://openstack-keystone.haproxy.us-homelab1.hl.rmb938.me/v3/",
         "--bootstrap-public-url=https://openstack-keystone.haproxy.us-homelab1.hl.rmb938.me/v3/",
@@ -30,6 +34,8 @@ def bootstrap():
 def main():
     lock_kv_path = "openstack-keystone/bootstrap-lock"
 
+    vault_client = hvac.Client(url="http://127.0.0.1:8100")
+
     consul_client = consul.Consul(
         host="127.0.0.1",
         port=8500,
@@ -47,7 +53,52 @@ def main():
             return
 
         try:
-            bootstrap()
+            now = datetime.now()
+
+            # Doing 7 days for now, it's long enough to not rotate constantly
+            # But short enough to notice any issues
+            credential_valid_length = timedelta(days=7)
+
+            # The minimum amount of length left before we cut a new cred
+            credential_min_length = credential_valid_length / 3
+
+            newest_expires_at = now
+
+            # Read existing admin password if it exists
+            admin_password = ""
+            try:
+                admin_password_secret = vault_client.secrets.kv.v1.read_secret(
+                    path=f"openstack-keystone/admin-password",
+                )
+                admin_password = admin_password_secret["data"]["password"]
+                newest_expires_at = datetime.fromisoformat(
+                    admin_password_secret["data"]["expires_at"]
+                )
+            except InvalidPath:
+                # If the path DNE we will see the password expiring as now
+                pass
+
+            # If we are not going to expire soon, don't create a new credential
+            if (newest_expires_at - now) > credential_min_length:
+                print("Admin does not need a new credential yet.")
+            else:
+                print("Admin needs a password rotation.")
+
+                expires_at = now + credential_valid_length
+                print("Generate admin password")
+                admin_password = secrets.token_hex(32)
+
+                print("Writting admin password to vault")
+                vault_client.secrets.kv.v1.create_or_update_secret(
+                    path=f"openstack-keystone/admin-password",
+                    secret={
+                        "password": admin_password,
+                        "expires_at": expires_at.strftime("%Y-%m-%dT%H:%M:%S"),
+                        "ttl": "3600",  # Hint for lease_duration to check every 1 hour
+                    },
+                )
+
+            bootstrap(admin_password)
         finally:
             released = consul_client.kv.put(
                 lock_kv_path, "released", release=session_id
