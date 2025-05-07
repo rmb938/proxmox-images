@@ -4,6 +4,7 @@
 import sys
 
 import consul
+import hvac
 from openstack import connection
 
 
@@ -12,6 +13,8 @@ def main():
     openstack_domain_name = "Default"
 
     lock_kv_path = "openstack-keystone/service-users-lock"
+
+    vault_client = hvac.Client(url="http://127.0.0.1:8100")
 
     consul_client = consul.Consul(
         host="127.0.0.1",
@@ -30,12 +33,17 @@ def main():
             return
 
         try:
+            admin_password_secret = vault_client.secrets.kv.v1.read_secret(
+                path=f"openstack-keystone/admin-password",
+            )
+            admin_password = admin_password_secret["data"]["password"]
+
             conn = connection.Connection(
                 region_name=openstack_region,
                 auth={
                     "auth_url": "https://openstack-keystone.haproxy.us-homelab1.hl.rmb938.me",  # TODO: just use local hostname
                     "username": "admin",
-                    "password": "admin-asdasd",  # TODO: get this from vault
+                    "password": admin_password,
                     "project_name": "admin",
                     "project_domain_name": openstack_domain_name,
                     "user_domain_name": openstack_domain_name,
