@@ -93,6 +93,7 @@ def main():
                     path=f"openstack-keystone/admin-password",
                     secret={
                         "password": admin_password,
+                        "created_at": now.strftime("%Y-%m-%dT%H:%M:%S"),
                         "expires_at": expires_at.strftime("%Y-%m-%dT%H:%M:%S"),
                         "ttl": "3600",  # Hint for lease_duration to check every 1 hour
                     },
