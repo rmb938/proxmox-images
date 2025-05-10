@@ -306,4 +306,33 @@
   ansible.builtin.systemd:
     name: keystone-service-users-token.timer
     enabled: true
+
+- name: Place keystone-project-users-token script
+  ansible.builtin.copy:
+    src: usr/local/bin/keystone-project-users-token
+    dest: /usr/local/bin/keystone-project-users-token
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Place keystone-project-users-token service
+  ansible.builtin.template:
+    src: etc/systemd/system/keystone-project-users-token.service
+    dest: /etc/systemd/system/keystone-project-users-token.service
+    mode: "0644"
+
+- name: Place keystone-project-users-token timer
+  ansible.builtin.template:
+    src: etc/systemd/system/keystone-project-users-token.timer
+    dest: /etc/systemd/system/keystone-project-users-token.timer
+    mode: "0644"
+
+- name: SystemD daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable keystone-project-users-token timer
+  ansible.builtin.systemd:
+    name: keystone-project-users-token.timer
+    enabled: true
 # End Keystone
