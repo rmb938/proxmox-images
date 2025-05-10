@@ -1,0 +1,1 @@
+{{ with secret "secret/devstack/tailscale" }}{{ .Data.key }}{{ end }}

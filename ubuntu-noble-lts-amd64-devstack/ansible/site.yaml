@@ -1,0 +1,9 @@
+- name: Devstack
+  hosts: all
+  become: true
+  roles:
+    - devstack
+  vars:
+    is_packer: true
+    step_ca_url: "https://step-ca.us-homelab1.hl.rmb938.me"
+    step_ra_acme_url: "https://step-ca.us-homelab1.hl.rmb938.me:8443"

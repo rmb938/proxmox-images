@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="tailscale-up"
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=tailscale-up.service
+
+[Install]
+WantedBy=multi-user.target

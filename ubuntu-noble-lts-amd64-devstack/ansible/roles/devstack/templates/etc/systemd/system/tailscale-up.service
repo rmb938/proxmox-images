@@ -1,0 +1,22 @@
+# {{ ansible_managed }}
+
+[Unit]
+Description="tailscale-up"
+Requires=network-online.target
+
+After=network-online.target
+
+ConditionFileNotEmpty=/etc/tailscale/tailscale-auth-key
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+
+ExecStart=/usr/bin/tailscale up --ssh --auth-key file:/etc/tailscale/tailscale-auth-key
+
+[Install]
+WantedBy=multi-user.target

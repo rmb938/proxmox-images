@@ -1,0 +1,195 @@
+---
+# Start Cloud Init Scripts
+- name: Cloud Init Scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/var/lib/cloud/scripts/custom-per-boot/{{ item | basename }}"
+    mode: "0755"
+    owner: root
+    group: root
+  with_fileglob:
+    - ../files/var/lib/cloud/scripts/custom-per-boot/*.sh
+# End Cloud Init Scripts
+
+- name: DISABLE tailscaled
+  ansible.builtin.systemd_service:
+    name: tailscaled
+    state: stopped
+    enabled: false
+
+- name: Install Libs
+  ansible.builtin.package:
+    name:
+      - build-essential
+      - zsh
+
+- name: Install Tools
+  ansible.builtin.package:
+    name:
+      - terraform
+      - packer
+      - podman
+      - docker-compose
+
+- name: Add Google Cloud public key
+  ansible.builtin.apt_key:
+    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    state: present
+
+# TODO: add to auto upgrades
+- name: Add Google Cloud CLI repository
+  ansible.builtin.apt_repository:
+    repo: deb https://packages.cloud.google.com/apt cloud-sdk main
+    state: present
+
+- name: Install GCP and K8s Tools
+  ansible.builtin.package:
+    name:
+      - google-cloud-cli
+      - google-cloud-cli-gke-gcloud-auth-plugin
+      - kubectl
+
+- name: Download Go tarball
+  ansible.builtin.get_url:
+    url: "https://golang.org/dl/go1.24.3.linux-amd64.tar.gz"
+    dest: "/tmp/go.tar.gz"
+    checksum: "sha256:3333f6ea53afa971e9078895eaa4ac7204a8c6b5c68c10e6bc9a33e8e391bdd8"
+    mode: '0644'
+
+- name: Create Go installation directory if it doesn't exist
+  ansible.builtin.file:
+    path: "/usr/local"
+    state: directory
+    mode: '0755'
+
+- name: Extract Go tarball
+  ansible.builtin.unarchive:
+    src: "/tmp/go.tar.gz"
+    dest: "/usr/local"
+    remote_src: true
+
+- name: Add Go binary path to system-wide PATH
+  ansible.builtin.copy:
+    content: 'export PATH=$PATH:/usr/local/go/bin'
+    dest: "/etc/profile.d/golang.sh"
+    mode: '0755'
+
+- name: Download Homebrew installation script
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
+    dest: "/tmp/install_homebrew.sh"
+    mode: '0755'
+
+- name: Run Homebrew installation script
+  ansible.builtin.shell:
+    cmd: "/tmp/install_homebrew.sh"
+  args:
+    creates: "/home/linuxbrew/.linuxbrew/bin/brew"
+    executable: /bin/bash
+  environment:
+    NONINTERACTIVE: "1"
+  become: false
+
+- name: Install Brew Packages
+  community.general.homebrew:
+    name:
+      - gcc
+      - zsh-syntax-highlighting
+      - powerline-go
+      - z
+    state: present
+  become: false
+
+- name: Copy zshrc
+  ansible.builtin.copy:
+    src: home/ubuntu/.zshrc
+    dest: /home/ubuntu/.zshrc
+    owner: ubuntu
+    group: ubuntu
+    mode: "0644"
+
+- name: Change ubuntu shell to zsh
+  ansible.builtin.user:
+    name: ubuntu
+    shell: /usr/bin/zsh
+
+# Start Consul Template Tailscale
+- name: Create tailscale user
+  ansible.builtin.user:
+    name: tailscale
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+    home: /var/lib/tailscale
+
+- name: Create tailscale config dir
+  ansible.builtin.file:
+    path: /etc/tailscale
+    state: directory
+    owner: tailscale
+    group: tailscale
+    mode: '0755'
+
+- name: Configure Consul Template for Tailscale
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-tailscale.hcl
+    dest: /etc/consul-template/consul-template-tailscale.hcl
+    mode: "0644"
+    owner: tailscale
+    group: tailscale
+
+- name: Create Consul Template for Tailscale Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/tailscale/
+    state: directory
+    mode: "0744"
+    owner: tailscale
+    group: tailscale
+
+- name: Place Consul Template for Tailscale Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/tailscale/{{ item | basename }}"
+    mode: "0644"
+    owner: tailscale
+    group: tailscale
+  with_fileglob:
+    - ../files/etc/consul-template/templates/tailscale/*.ctmpl
+
+- name: Place Consul Template for Tailscale Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/tailscale/{{ item | basename }}"
+    mode: "0644"
+    owner: tailscale
+    group: tailscale
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/tailscale/*.ctmpl
+
+- name: Consul Template for Tailscale SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-tailscale.service
+    dest: /etc/systemd/system/consul-template-tailscale.service
+    mode: "0644"
+# End Consul Template Tailscale
+
+- name: Place tailscale-up service
+  ansible.builtin.template:
+    src: etc/systemd/system/tailscale-up.service
+    dest: /etc/systemd/system/tailscale-up.service
+    mode: "0644"
+
+- name: Place tailscale-up timer
+  ansible.builtin.template:
+    src: etc/systemd/system/tailscale-up.timer
+    dest: /etc/systemd/system/tailscale-up.timer
+    mode: "0644"
+
+- name: SystemD daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable tailscale-up timer
+  ansible.builtin.systemd:
+    name: tailscale-up.timer
+    enabled: true
