@@ -108,6 +108,7 @@ postgresql:
     ssl_cert_file: "/etc/patroni/postgres-server.crt"
     ssl_key_file: "/etc/patroni/postgres-server.key"
     ssl_ca_file: "/etc/patroni/postgres-client-ca.crt"
+    ssl_min_protocol_version = 'TLSv1.3'
     password_encryption: "scram-sha-256"
     unix_socket_directories: /var/run/postgresql
     unix_socket_permissions: "0700"

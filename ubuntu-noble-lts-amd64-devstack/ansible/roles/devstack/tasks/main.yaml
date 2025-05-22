@@ -29,7 +29,7 @@
       - terraform
       - packer
       - podman
-      - docker-compose
+      - podman-compose
 
 - name: Add Google Cloud public key
   ansible.builtin.apt_key:
