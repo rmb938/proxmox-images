@@ -147,7 +147,7 @@
     # Rekey needs to happen against the CA, RA's don't support rekey
     # https://smallstep.com/docs/step-ca/registration-authority-ra-mode/#stepcas-limitations
     job: >-
-      step ca rekey etc/prometheus/tls/prometheus.crt
+      step ca rekey /etc/prometheus/tls/prometheus.crt
       /etc/prometheus/tls/prometheus.key
       --ca-url {{ step_ca_url }}
       --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
