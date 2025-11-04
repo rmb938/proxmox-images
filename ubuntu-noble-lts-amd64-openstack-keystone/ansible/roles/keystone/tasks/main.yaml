@@ -36,7 +36,7 @@
 
 - name: INSTALL openstack-keystone-hashicorp-vault-provider
   ansible.builtin.pip:
-    name: git+https://github.com/rmb938/openstack-keystone-hashicorp-vault-provider.git@1.0.1
+    name: git+https://github.com/rmb938/openstack-keystone-hashicorp-vault-provider.git@1.0.2
     break_system_packages: true
 
 - name: DISABLE APACHE2

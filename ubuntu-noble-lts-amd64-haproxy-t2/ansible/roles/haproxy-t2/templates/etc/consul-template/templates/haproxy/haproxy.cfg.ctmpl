@@ -100,7 +100,7 @@ resolvers nameservers
         option forwarded
         option httpchk {{ .ServiceMeta.haproxy_t2_check_method | sprig_default "GET" }} {{ .ServiceMeta.haproxy_t2_check_uri | sprig_default "/health" }}
             {{- range service (printf "%s|any" .Name) }}
-        server {{ .Node }} {{ .Node }}.us-homelab1.hl.rmb938.me:{{ .Port }} check resolvers nameservers init-addr last,libc,none observe layer7 on-error mark-down ssl verify required ca-file @system-ca
+        server {{ .Node }} {{ .Node }}.us-homelab1.hl.rmb938.me:{{ .Port }} check port {{ .ServiceMeta.haproxy_t2_check_port | sprig_default .Port }} check-ssl resolvers nameservers init-addr last,libc,none observe layer7 on-error mark-down ssl verify required ca-file @system-ca
             {{- end }}
         {{- break}}
         {{- end }}
