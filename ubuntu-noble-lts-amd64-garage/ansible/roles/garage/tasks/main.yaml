@@ -1,0 +1,205 @@
+---
+# Start Cloud Init Scripts
+- name: Cloud Init Scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/var/lib/cloud/scripts/custom-per-boot/{{ item | basename }}"
+    mode: "0755"
+    owner: root
+    group: root
+  with_fileglob:
+    - ../files/var/lib/cloud/scripts/custom-per-boot/*.sh
+# End Cloud Init Scripts
+
+- name: Download Garage
+  ansible.builtin.get_url:
+    url: "https://garagehq.deuxfleurs.fr/_releases/v2.1.0/x86_64-unknown-linux-musl/garage"
+    dest: /usr/local/bin/garage
+    checksum: "sha256:543b0414d1464ab855ebe9b843938a5e5361fd24436891ce3dff9e03d02839d8."
+    mode: "0755"
+
+- name: Create garage group
+  ansible.builtin.group:
+    name: garage
+    state: present
+    system: true
+
+- name: Create garage user
+  ansible.builtin.user:
+    name: garage
+    group: garage
+    home: /var/lib/garage
+    create_home: false
+    state: present
+    system: true
+
+- name: Garage SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/garage.service
+    dest: /etc/systemd/system/garage.service
+    mode: "0644"
+
+- name: Create Garage Data Dir
+  ansible.builtin.file:
+    path: /var/lib/garage
+    state: directory
+    owner: garage
+    group: garage
+    mode: "0775"
+
+- name: Create Garage Config Dir
+  ansible.builtin.file:
+    path: /etc/garage
+    state: directory
+    owner: garage
+    group: garage
+    mode: "0775"
+
+# Start Consul Tempalte for Consul
+- name: Configure Consul Template for Consul
+  ansible.builtin.template:
+    src: etc/consul-template/consul/50_garage.service.hcl
+    dest: /etc/consul-template/consul/50_garage.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Place Consul Template for Consul Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/consul/{{ item | basename }}"
+    mode: "0644"
+    owner: consul
+    group: consul
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/consul/*.ctmpl
+# End Consul Tempalte for Consul
+
+# Start Certificates
+- name: HAProxy Step Certs SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/haproxy-step-certs.service
+    dest: /etc/systemd/system/haproxy-step-certs.service
+    mode: "0644"
+
+- name: Create HAProxy systemd override folder
+  ansible.builtin.file:
+    path: /etc/systemd/system/haproxy.service.d/
+    state: directory
+    mode: "0755"
+
+- name: HAProxy systemd Override
+  ansible.builtin.template:
+    src: etc/systemd/system/haproxy.service.d/override.conf
+    dest: /etc/systemd/system/haproxy.service.d/override.conf
+    mode: "0644"
+
+- name: Cron to renew Garanage certificates
+  ansible.builtin.cron:
+    name: "renew garage certificates"
+    special_time: "hourly"
+    # Rekey needs to happen against the CA, RA's don't support rekey
+    # https://smallstep.com/docs/step-ca/registration-authority-ra-mode/#stepcas-limitations
+    job: >-
+      step ca rekey /etc/ssl/private/haproxy.crt
+      /etc/ssl/private/haproxy.crt.key
+      --ca-url https://step-ca.us-homelab1.hl.rmb938.me
+      --root /usr/local/share/ca-certificates/smallstep-homelab-prod.crt
+      --force --expires-in 720h --exec "systemctl try-reload-or-restart haproxy"
+    state: present
+# End Certificates
+
+# Start HAProxy
+- name: HAProxy Garage API Service Consul Config
+  ansible.builtin.template:
+    src: etc/consul.d/50_haproxy-garage.service.hcl
+    dest: /etc/consul.d/50_haproxy-garage.service.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Add HAProxy 3.0 PPA
+  ansible.builtin.apt_repository:
+    repo: ppa:vbernat/haproxy-3.0
+    state: present
+
+- name: Install HAProxy
+  ansible.builtin.package:
+    name: 'haproxy=3.0.*'
+    state: present
+
+- name: Disable HAProxy
+  ansible.builtin.systemd_service:
+    name: haproxy
+    enabled: false
+
+- name: Own HAProxy Dir
+  ansible.builtin.file:
+    path: /etc/haproxy
+    state: directory
+    mode: '0755'
+    owner: haproxy
+    group: haproxy
+
+- name: Configure HAProxy
+  ansible.builtin.template:
+    src: etc/haproxy/haproxy.cfg
+    dest: /etc/haproxy/haproxy.cfg
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+# End HAProxy
+
+# Start Consul Template Garage
+- name: Add garage to sudoers
+  community.general.sudoers:
+    name: garage
+    user: garage
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart garage
+    state: present
+
+- name: Configure Consul Template for Garage
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-garage.hcl
+    dest: /etc/consul-template/consul-template-garage.hcl
+    mode: "0644"
+    owner: garage
+    group: garage
+
+- name: Create Consul Template for CinGarageder Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/garage/
+    state: directory
+    mode: "0744"
+    owner: garage
+    group: garage
+
+- name: Place Consul Template for Garage Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/garage/{{ item | basename }}"
+    mode: "0644"
+    owner: garage
+    group: garage
+  with_fileglob:
+    - ../files/etc/consul-template/templates/garage/*.ctmpl
+
+- name: Place Consul Template for Garage Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/garage/{{ item | basename }}"
+    mode: "0644"
+    owner: garage
+    group: garage
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/garage/*.ctmpl
+
+- name: Consul Template for Garage SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-garage.service
+    dest: /etc/systemd/system/consul-template-garage.service
+    mode: "0644"
+# End Consul Template Garage

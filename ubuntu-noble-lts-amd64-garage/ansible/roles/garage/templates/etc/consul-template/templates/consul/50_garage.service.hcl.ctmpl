@@ -1,0 +1,62 @@
+# {{ ansible_managed }}
+# Consul Template Managed - Consul
+
+services {
+  name = "garage-s3"
+  id   = "garage-s3"
+  port = 3900
+
+  check = {
+    id = "garage-s3"
+    name = "Garage S3 API on port 3900"
+    http = "https://{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:3903/health"
+
+    interval = "30s"
+    timeout = "5s"
+  }
+
+  meta {
+    haproxy_t2 = "true"
+    haproxy_t2_check_uri = "/health"
+    haproxy_t2_check_port = "3903"
+  }
+}
+
+services {
+  name = "garage-rpc"
+  id   = "garage-rpc"
+  port = 3901
+
+  check = {
+    id = "garage-rpc"
+    name = "Garage RPC on port 3901"
+    http = "https://{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:3903/health"
+
+    interval = "30s"
+    timeout = "5s"
+  }
+
+  meta { }
+}
+
+services {
+  name = "garage-admin"
+  id   = "garage-admin"
+  port = 3903
+
+  check = {
+    id = "garage-rpc"
+    name = "Garage RPC on port 3903"
+    http = "https://{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:3903/health"
+
+    interval = "30s"
+    timeout = "5s"
+  }
+
+  meta {
+    haproxy_t2 = "true"
+    haproxy_t2_check_uri = "/health"
+
+    prometheus_scrape = "true"
+  }
+}

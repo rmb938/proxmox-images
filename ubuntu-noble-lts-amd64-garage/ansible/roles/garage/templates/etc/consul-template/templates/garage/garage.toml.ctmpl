@@ -1,0 +1,55 @@
+# {{ ansible_managed }}
+# Consul Template Managed - Garage
+# Used to re-render every boot so the service starts
+{% raw %}
+# Boot ID - {{ file "/proc/sys/kernel/random/boot_id" }}
+{% endraw %}
+
+# TODO: only 1 server for now so only 1 replica factor
+replication_factor = 1
+consistency_mode = "consistent"
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+metadata_snapshots_dir = "/var/lib/garage/snapshots"
+metadata_fsync = true
+data_fsync = false
+disable_scrub = false
+use_local_tz = true
+metadata_auto_snapshot_interval = "6h"
+
+db_engine = "lmdb"
+
+block_size = "1M"
+block_ram_buffer_max = "256MiB"
+block_max_concurrent_reads = 16
+
+lmdb_map_size = "1T"
+
+compression_level = 1
+
+rpc_secret_file = "/etc/garage/rpc_secret"
+# Not exposed through HAProxy cause it's raw tcp with no SSL
+# and HAProxy was being weird with exposing http and tcp at the same time
+rpc_bind_addr = "0.0.0.0:3901"
+rpc_bind_outgoing = false
+rpc_public_addr = "{% raw %}{{ sockaddr "GetPrivateIP" }}{% endraw %}:3901"
+
+allow_world_readable_secrets = false
+
+allow_punycode = false
+
+[s3_api]
+# Exposed on 0.0.0.0:3900 through haproxy
+api_bind_addr = "127.0.0.1:13900"
+s3_region = "us-homelab1"
+
+[admin]
+# Exposed on 0.0.0.0:3903 through haproxy
+api_bind_addr = "127.0.0.1:13903"
+
+{% raw %}
+{{ with secret "secret/minio/garage_admin_token" }}
+admin_token = "{{ .Data.garage_admin_token }}"
+{{ end }}
+{% endraw %}
