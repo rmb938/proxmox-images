@@ -1,0 +1,27 @@
+# {{ ansible_managed }}
+# Consul Template Managed - Consul
+
+services {
+  name = "clickhouse-server"
+  id   = "clickhouse-server"
+  port = 9000
+
+  check {
+    id = "clickhouse-server-http"
+    http = "https://{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:8443/ping"
+    interval = "10s"
+  }
+}
+
+services {
+  name = "clickhouse-keeper"
+  id   = "clickhouse-keeper"
+  port = 9181
+
+  check = {
+    id = "clickhouse-keeper"
+    tcp = "localhost:9181"
+    interval = "30s"
+    timeout = "5s"
+  }
+}

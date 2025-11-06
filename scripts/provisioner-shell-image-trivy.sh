@@ -13,7 +13,7 @@ sudo rm -rf /var/lib/fwupd/pki/*
 
 # Download and install
 mkdir -p /tmp/trivy
-curl -L -o /tmp/trivy.tar.gz https://github.com/aquasecurity/trivy/releases/download/v0.58.1/trivy_0.58.1_Linux-64bit.tar.gz
+curl -L -o /tmp/trivy.tar.gz https://github.com/aquasecurity/trivy/releases/download/v0.67.2/trivy_0.67.2_Linux-64bit.tar.gz
 tar -xzvf /tmp/trivy.tar.gz -C /tmp/trivy
 
 # Run

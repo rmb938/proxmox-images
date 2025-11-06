@@ -1,0 +1,15 @@
+<!-- {{ ansible_managed }} -->
+
+<clickhouse>
+  <listen_host>::</listen_host>
+  <mysql_port remove="1"/>
+  <postgresql_port remove="1"/>
+
+  <zookeeper>
+    <!-- TODO: idk if this needs to be a full list of nodes or not -->
+    <node>
+      <host>clickhouse-keeper.service.consul</host>
+      <port>9181</port>
+    </node>
+  </zookeeper>
+</clickhouse>

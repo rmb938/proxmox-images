@@ -1,0 +1,215 @@
+---
+# Start Cloud Init Scripts
+- name: Cloud Init Scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/var/lib/cloud/scripts/custom-per-boot/{{ item | basename }}"
+    mode: "0755"
+    owner: root
+    group: root
+  with_fileglob:
+    - ../files/var/lib/cloud/scripts/custom-per-boot/*.sh
+# End Cloud Init Scripts
+
+# Start Clickhouse
+- name: Clickhouse Keyring
+  ansible.builtin.get_url:
+    url: https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key
+    dest: /usr/share/keyrings/clickhouse.asc
+    checksum: sha256:74c1dfd89393b27c5739ee579a5af661ebe628cef9c33222c6fb29d0b8d42ad0.
+    mode: "0644"
+
+- name: Add Clickhouse repo
+  ansible.builtin.apt_repository:
+    repo: >
+      deb [signed-by=/usr/share/keyrings/clickhouse.asc arch=amd64] https://packages.clickhouse.com/deb stable main
+    state: present
+
+- name: Install Clickhouse
+  ansible.builtin.package:
+    name:
+      - clickhouse-server
+      - clickhouse-client
+      # - clickhouse-keeper # Installed via clickhouse-server and conflicts with it
+    state: present
+
+- name: Disable Clickhouse Server Service
+  ansible.builtin.systemd_service:
+    name: clickhouse-server
+    state: stopped
+    enabled: false
+
+- name: Disable Clickhouse Keeper Service
+  ansible.builtin.systemd_service:
+    name: clickhouse-keeper
+    state: stopped
+    enabled: false
+
+- name: Place Clickhouse Keeper Config
+  ansible.builtin.template:
+    src: "etc/clickhouse-keeper/keeper_config.xml"
+    dest: "/etc/clickhouse-keeper/keeper_config.xml"
+    mode: "0644"
+    owner: clickhouse
+    group: clickhouse
+
+- name: Place Clickhouse Server Custom Config
+  ansible.builtin.template:
+    src: "etc/clickhouse-server/config.d/custom.xml"
+    dest: "/etc/clickhouse-server/config.d/custom.xml"
+    mode: "0644"
+    owner: clickhouse
+    group: clickhouse
+
+- name: Place Clickhouse Server Custom Config
+  ansible.builtin.template:
+    src: "etc/clickhouse-server/config.d/custom.xml"
+    dest: "/etc/clickhouse-server/config.d/custom.xml"
+    mode: "0644"
+    owner: clickhouse
+    group: clickhouse
+
+- name: Place Clickhouse Server default password config
+  ansible.builtin.template:
+    src: "etc/clickhouse-server/users.d/default-password.xml"
+    dest: "/etc/clickhouse-server/users.d/default-password.xml"
+    mode: "0644"
+    owner: clickhouse
+    group: clickhouse
+# End Clickhouse
+
+# Start Consul Tempalte for Consul
+- name: Configure Consul Template for Consul
+  ansible.builtin.template:
+    src: etc/consul-template/consul/50_clickhouse.hcl
+    dest: /etc/consul-template/consul/50_clickhouse.hcl
+    mode: "0644"
+    owner: consul
+    group: consul
+
+- name: Place Consul Template for Consul Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/consul/{{ item | basename }}"
+    mode: "0644"
+    owner: consul
+    group: consul
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/consul/*.ctmpl
+# End Consul Tempalte for Consul
+
+# Start Grafana PDC Agent
+- name: Download Grafana PDC archive
+  ansible.builtin.get_url:
+    url: "https://github.com/grafana/pdc-agent/releases/download/v0.0.47/pdc-agent_Linux_x86_64.tar.gz"
+    dest: /var/lib/grafana-pdc.tar.gz
+    checksum: "sha256:c51ffd7df641da8bb1490e45cf608d1366a7b71fd1d89404a7d1855c64bd5568."
+    mode: "0666"
+
+- name: Extract Grafana PDC archive
+  ansible.builtin.unarchive:
+    src: /var/lib/grafana-pdc.tar.gz
+    dest: /var/lib
+    remote_src: true
+
+- name: Copy Grafana PDC binary
+  ansible.builtin.copy:
+    src: /var/lib/pdc-agent_Linux_x86_64/pdc
+    dest: /usr/local/bin/grafana-pdc
+    mode: "0755"
+    remote_src: true
+
+- name: Create grafana-pdc group
+  ansible.builtin.group:
+    name: grafana-pdc
+    state: present
+    system: true
+
+- name: Create grafana-pdc user
+  ansible.builtin.user:
+    name: grafana-pdc
+    group: grafana-pdc
+    home: /etc/grafana-pdc
+    create_home: false
+    state: present
+    system: true
+
+- name: Create grafana-pdc home dir
+  ansible.builtin.file:
+    path: /etc/grafana-pdc
+    state: directory
+    owner: grafana-pdc
+    group: grafana-pdc
+    mode: "0775"
+
+- name: Create grafana-pdc ssh dir
+  ansible.builtin.file:
+    path: /etc/grafana-pdc/.ssh
+    state: directory
+    owner: grafana-pdc
+    group: grafana-pdc
+    mode: "0775"
+
+- name: Grafana PDC SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/grafana-pdc.service
+    dest: /etc/systemd/system/grafana-pdc.service
+    mode: "0644"
+# End Grafana PDC Agent
+
+# Start Consul Template for grafana-pdc
+- name: Add grafana-pdc to sudoers
+  community.general.sudoers:
+    name: grafana-pdc
+    user: grafana-pdc
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart grafana-pdc
+    state: present
+
+- name: Configure Consul Template for grafana-pdc
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-grafana-pdc.hcl
+    dest: /etc/consul-template/consul-template-grafana-pdc.hcl
+    mode: "0644"
+    owner: grafana-pdc
+    group: grafana-pdc
+  register: consul_template_grafana_pdc_config
+
+- name: Create Consul Template for grafana-pdc Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/grafana-pdc/
+    state: directory
+    mode: "0744"
+    owner: grafana-pdc
+    group: grafana-pdc
+
+- name: Place Consul Template for grafana-pdc Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/grafana-pdc/{{ item | basename }}"
+    mode: "0644"
+    owner: haproxy
+    group: haproxy
+  with_fileglob:
+    - ../files/etc/consul-template/templates/grafana-pdc/*.ctmpl
+  register: consul_template_grafana_pdc_templates_files
+
+- name: Place Consul Template for grafana-pdc Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/grafana-pdc/{{ item | basename }}"
+    mode: "0644"
+    owner: grafana-pdc
+    group: grafana-pdc
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/grafana-pdc/*.ctmpl
+  register: consul_template_grafana_pdc_templates
+
+- name: Consul Template for grafana-pdc SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-grafana-pdc.service
+    dest: /etc/systemd/system/consul-template-grafana-pdc.service
+    mode: "0644"
+# End Consul Template for grafana-pdc
