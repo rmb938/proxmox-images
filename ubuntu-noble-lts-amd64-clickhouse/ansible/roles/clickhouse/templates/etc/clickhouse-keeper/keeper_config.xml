@@ -29,9 +29,9 @@
 
     <max_connections>4096</max_connections>
 
+    <listen_host>::</listen_host>
     <keeper_server>
             <tcp_port>9181</tcp_port>
-            <listen_host>::</listen_host>
 
             <!-- Must be unique among all keeper serves -->
             <!-- TODO: pull this from the hostname-->
