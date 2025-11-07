@@ -14,7 +14,7 @@ ExecStart=/usr/local/bin/grafana-pdc \
   -token ${GRAFANA_PDC_TOKEN} \
   -cluster prod-us-central-0 \
   -gcloud-hosted-grafana-id ${GRAFANA_PDC_GRAFANA_ID} \
-  -ssh-flag="-o PermitRemoteOpen=${HOSTNAME}:9090"
+  -ssh-flag="-o PermitRemoteOpen=${HOSTNAME}:9000"
 
 CapabilityBoundingSet=CAP_SET_UID
 LimitNOFILE=65000
