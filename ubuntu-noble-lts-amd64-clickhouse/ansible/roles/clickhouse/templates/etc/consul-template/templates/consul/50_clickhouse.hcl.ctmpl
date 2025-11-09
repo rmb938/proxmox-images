@@ -7,7 +7,7 @@ services {
   port = 9000
 
   check {
-    id = "clickhouse-server-http"
+    id = "clickhouse-server-https"
     http = "https://{% raw %}{{ (mustEnv "HOSTNAME") }}{% endraw %}:8443/ping"
     interval = "10s"
   }
@@ -23,5 +23,25 @@ services {
     tcp = "localhost:9181"
     interval = "30s"
     timeout = "5s"
+  }
+}
+
+services {
+  name = "prometheus-clickhouse-server"
+  id   = "prometheus-clickhouse-server"
+  port = 9363
+
+  meta {
+    prometheus_scrape = "true"
+  }
+}
+
+services {
+  name = "prometheus-clickhouse-keeper"
+  id   = "prometheus-clickhouse-keeper"
+  port = 9364
+
+  meta {
+    prometheus_scrape = "true"
   }
 }
