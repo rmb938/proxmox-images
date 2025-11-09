@@ -1,6 +1,10 @@
 <!-- {{ ansible_managed }} -->
 
 <clickhouse>
+  <logger>
+    <level>information</level>
+ </logger>
+
   <listen_host>::</listen_host>
   <mysql_port remove="1"/>
   <postgresql_port remove="1"/>

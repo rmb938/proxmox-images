@@ -16,7 +16,7 @@
 
             [1]: https://github.com/pocoproject/poco/blob/poco-1.9.4-release/Foundation/include/Poco/Logger.h#L105-L114
         -->
-        <level>trace</level>
+        <level>information</level>
         <log>/var/log/clickhouse-keeper/clickhouse-keeper.log</log>
         <errorlog>/var/log/clickhouse-keeper/clickhouse-keeper.err.log</errorlog>
         <!-- Rotation policy
